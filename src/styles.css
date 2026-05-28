@@ -1,0 +1,561 @@
+@import "tailwindcss";
+
+@layer base {
+  :root {
+    color-scheme: dark;
+    font-family:
+      Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    font-synthesis: none;
+    text-rendering: optimizeLegibility;
+  }
+
+  * {
+    @apply box-border;
+  }
+
+  body {
+    @apply m-0 min-h-screen min-w-80 bg-[#101216] text-[#f4f7fb];
+    background: linear-gradient(180deg, #151820 0%, #101216 36%, #0c0e12 100%);
+  }
+
+  button,
+  input,
+  textarea {
+    font: inherit;
+  }
+
+  button {
+    @apply cursor-pointer;
+  }
+
+  code {
+    @apply text-[#8fd3ff];
+  }
+
+  label {
+    @apply grid gap-[7px] text-[0.82rem] font-extrabold text-[#b8c3d4];
+  }
+
+  input,
+  select,
+  textarea {
+    @apply w-full rounded-lg border border-[#303b4e] bg-[#0f131b] px-3 py-[11px] text-[#f4f7fb];
+  }
+
+  textarea {
+    @apply resize-y;
+  }
+}
+
+@layer components {
+  .app-shell,
+  .public-shell,
+  .setup-shell,
+  .auth-shell {
+    width: min(1200px, calc(100% - 32px));
+    @apply mx-auto py-7 pb-12;
+  }
+
+  .public-shell {
+    @apply relative w-full max-w-none px-0 pb-0;
+  }
+
+  .admin-shell {
+    width: min(1600px, calc(100% - 40px));
+  }
+
+  .public-shell .topbar {
+    @apply mx-4;
+  }
+
+  .public-footer {
+    @apply fixed bottom-3 left-1/2 z-40 -translate-x-1/2 rounded-full border border-[#27303d] bg-[#101216]/85 px-3 py-1.5 text-xs font-bold text-[#78859a] backdrop-blur;
+  }
+
+  .setup-shell,
+  .auth-shell {
+    @apply grid min-h-screen place-items-center;
+  }
+
+  .setup-panel,
+  .auth-panel,
+  .state-panel,
+  .event-form,
+  .admin-list {
+    @apply rounded-lg border border-[#27303d] bg-[#171b23];
+  }
+
+  .setup-panel,
+  .auth-panel {
+    width: min(460px, 100%);
+    @apply p-7;
+  }
+
+  .setup-panel h1,
+  .auth-heading h1,
+  .topbar h1 {
+    @apply mt-2 mb-0 tracking-normal;
+  }
+
+  .setup-panel p,
+  .auth-heading p,
+  .state-panel p {
+    @apply text-[#aeb8c8] leading-relaxed;
+  }
+
+  .state-action {
+    @apply mt-2 inline-flex min-h-[38px] items-center justify-center rounded-lg border border-[#4f89ff] bg-[#202632] px-3 font-extrabold text-[#f4f7fb] no-underline;
+  }
+
+  .topbar {
+    @apply mb-6 flex items-center justify-between gap-5;
+  }
+
+  .topbar h1 {
+    @apply text-[2.35rem];
+  }
+
+  .topbar-actions,
+  .form-actions,
+  .admin-event-actions {
+    @apply flex flex-wrap items-center gap-2.5;
+  }
+
+  .eyebrow {
+    @apply m-0 text-[0.78rem] font-extrabold uppercase tracking-normal text-[#8cc7ff];
+  }
+
+  .button,
+  .icon-button {
+    @apply inline-flex min-h-[42px] items-center justify-center gap-2 rounded-lg border border-[#4f89ff] bg-[#2f6df6] px-3.5 font-extrabold text-white;
+  }
+
+  .button.secondary,
+  .icon-button {
+    @apply border-[#323d4f] bg-[#202632] text-[#f4f7fb];
+  }
+
+  .button.full {
+    @apply w-full;
+  }
+
+  .icon-button {
+    @apply w-[42px] px-0;
+  }
+
+  .icon-button.danger {
+    @apply text-[#ff8f8f];
+  }
+
+  .button:disabled,
+  .icon-button:disabled {
+    @apply cursor-wait opacity-70;
+  }
+
+  .state-panel {
+    @apply grid min-h-[180px] place-items-center p-6 text-center text-[#dce6f5];
+  }
+
+  .state-panel svg {
+    @apply text-[#8cc7ff];
+  }
+
+  .state-panel h2 {
+    @apply mt-3 mb-1;
+  }
+
+  .calendar-board {
+    @apply w-screen cursor-grab select-none overflow-x-auto border-y border-[#26303f] bg-[#10141c];
+    --day-width: 210px;
+    scrollbar-width: thin;
+    scrollbar-color: #3b4658 #10141c;
+  }
+
+  .calendar-board.is-panning {
+    @apply cursor-grabbing;
+  }
+
+  .calendar-month-row {
+    @apply flex min-w-full;
+  }
+
+  .month-span {
+    @apply relative h-10 shrink-0 border-r border-b border-[#26303f] bg-[#191d25];
+  }
+
+  .calendar-columns {
+    @apply grid min-w-full auto-cols-[var(--day-width)] grid-flow-col;
+  }
+
+  .date-column {
+    min-width: var(--day-width);
+    @apply border-r border-[#26303f] bg-[#151922];
+  }
+
+  .date-column:last-child {
+    @apply border-r-0;
+  }
+
+  .date-header {
+    @apply grid border-b border-[#26303f];
+  }
+
+  .month-header {
+    @apply sticky left-0 z-20 flex h-10 w-max min-w-[var(--day-width)] items-center bg-[#191d25] px-3 text-sm font-extrabold text-[#d8dde7];
+  }
+
+  .day-header {
+    @apply flex h-12 flex-col items-start justify-center border-b border-[#26303f] px-3 text-sm font-extrabold leading-tight text-[#c7d2e3];
+  }
+
+  .day-header small {
+    @apply mt-0.5 text-[0.66rem] font-bold text-[#78859a];
+  }
+
+  .day-header.today {
+    @apply bg-[#1f2b3b] text-[#ffffff];
+  }
+
+  .day-header.today small {
+    @apply text-[#8cc7ff];
+  }
+
+  .date-column-body {
+    @apply px-3 pt-3 pb-24;
+  }
+
+  .event-stack {
+    @apply grid gap-[14px];
+  }
+
+  .event-row {
+    @apply relative min-h-[46px] overflow-visible;
+  }
+
+  .event-title {
+    @apply whitespace-nowrap font-extrabold;
+  }
+
+  .event-label {
+    @apply grid min-w-0 leading-tight;
+  }
+
+  .event-label small {
+    @apply whitespace-nowrap text-[0.66rem] font-bold text-white/70;
+  }
+
+  .status-dot {
+    @apply h-2 w-2 rounded-full bg-[#9fabbd];
+  }
+
+  .status-dot.ongoing {
+    @apply bg-[#39d98a];
+  }
+
+  .status-dot.upcoming {
+    @apply bg-[#8cc7ff];
+  }
+
+  .status-dot.ended {
+    @apply bg-[#7d8798];
+  }
+
+  .event-bar-button {
+    @apply absolute top-1 bottom-1 z-10 flex min-w-6 cursor-pointer items-center gap-2 overflow-visible border px-2.5 text-left text-[0.82rem] font-black text-white;
+    touch-action: manipulation;
+  }
+
+  .event-popover {
+    @apply fixed z-50 rounded-lg border border-[#3b4658] bg-[#11151d] p-4 shadow-2xl shadow-black/40;
+    max-width: calc(100vw - 24px);
+  }
+
+  .popover-heading {
+    @apply mb-3 flex items-start justify-between gap-4;
+  }
+
+  .popover-heading h2 {
+    @apply mt-1 mb-0 text-xl;
+  }
+
+  .popover-time {
+    @apply mb-3 flex items-center gap-3 rounded-md border border-[#2f3a4c] bg-[#0f131b] p-3 text-[#f4f7fb];
+  }
+
+  .popover-time svg {
+    @apply shrink-0 text-[#8cc7ff];
+  }
+
+  .popover-time strong {
+    @apply block text-lg leading-none;
+  }
+
+  .popover-time span {
+    @apply mt-1 block text-xs font-bold text-[#9fabbd];
+  }
+
+  .popover-actions {
+    @apply mb-3 flex flex-wrap gap-2;
+  }
+
+  .event-popover p {
+    @apply mt-0 mb-3.5 leading-relaxed text-[#d5deec];
+  }
+
+  .event-popover dl {
+    @apply m-0 grid grid-cols-2 gap-3;
+  }
+
+  .event-popover dt {
+    @apply flex items-center gap-1.5 text-[0.76rem] font-extrabold uppercase text-[#91a0b4];
+  }
+
+  .event-popover dd {
+    @apply mt-1 mb-0 text-[#f4f7fb];
+  }
+
+  .event-info-panel {
+    @apply mx-auto max-w-2xl rounded-lg border border-[#27303d] bg-[#171b23] p-5;
+  }
+
+  .event-info-panel p {
+    @apply mt-0 mb-4 leading-relaxed text-[#d5deec];
+  }
+
+  .event-info-panel dl {
+    @apply m-0 grid grid-cols-2 gap-3;
+  }
+
+  .event-info-panel dt {
+    @apply flex items-center gap-1.5 text-[0.76rem] font-extrabold uppercase text-[#91a0b4];
+  }
+
+  .event-info-panel dd {
+    @apply mt-1 mb-0 text-[#f4f7fb];
+  }
+
+  .auth-heading {
+    @apply mb-[22px];
+  }
+
+  .divider {
+    @apply my-[18px] text-center text-[0.8rem] font-extrabold uppercase text-[#7d8798];
+  }
+
+  .text-link {
+    @apply border-0 bg-transparent p-0 font-extrabold text-[#8cc7ff];
+  }
+
+  .form-grid,
+  .event-form {
+    @apply grid gap-3.5;
+  }
+
+  .form-error {
+    @apply m-0 leading-snug text-[#ff9f9f];
+  }
+
+  div.form-error {
+    @apply rounded-lg border border-[#61313a] bg-[#24151a] p-3;
+  }
+
+  .form-error p {
+    @apply mt-1 mb-0;
+  }
+
+  .form-error a {
+    @apply mt-2.5 inline-flex font-extrabold text-[#8cc7ff];
+  }
+
+  .admin-layout {
+    @apply grid items-start gap-5;
+    grid-template-columns: minmax(340px, 520px) minmax(500px, 1fr);
+  }
+
+  .admin-tools {
+    @apply sticky top-4 grid gap-3;
+  }
+
+  .admin-tabs {
+    @apply grid grid-cols-2 rounded-lg border border-[#27303d] bg-[#11151d] p-1;
+  }
+
+  .tab-button {
+    @apply min-h-9 rounded-md border-0 bg-transparent px-3 text-sm font-extrabold text-[#9fabbd];
+  }
+
+  .tab-button.active {
+    @apply bg-[#2f6df6] text-white;
+  }
+
+  .event-form,
+  .admin-list {
+    @apply p-[18px];
+  }
+
+  .game-entry-form {
+    @apply grid gap-3;
+  }
+
+  .color-input {
+    @apply h-[44px] p-1;
+  }
+
+  .game-list {
+    @apply grid gap-2;
+  }
+
+  .game-list p {
+    @apply m-0 text-sm text-[#aeb8c8];
+  }
+
+  .game-entry {
+    @apply flex items-center gap-3 rounded-lg border border-[#293447] bg-[#11151d] p-2;
+  }
+
+  .game-entry > span:nth-child(2) {
+    @apply min-w-0 flex-1 truncate font-extrabold;
+  }
+
+  .game-swatch {
+    @apply h-5 w-5 shrink-0 border border-white/30;
+  }
+
+  .section-heading {
+    @apply flex items-center gap-[9px];
+  }
+
+  .section-heading h2 {
+    @apply m-0 text-[1.12rem];
+  }
+
+  .two-col {
+    @apply grid grid-cols-2 gap-3;
+  }
+
+  .toggle-row {
+    @apply flex items-center gap-2.5;
+  }
+
+  .toggle-row input {
+    @apply w-auto;
+  }
+
+  .admin-list {
+    @apply grid gap-0 overflow-hidden bg-[#11151d];
+  }
+
+  .admin-event {
+    @apply flex justify-between gap-3 rounded-lg border border-[#293447] bg-[#11151d] p-3.5;
+  }
+
+  .admin-event.compact {
+    @apply grid items-center gap-3 rounded-none border-x-0 border-t-0 border-b border-[#26303f] bg-transparent p-2.5;
+    grid-template-columns: minmax(140px, 1fr) 132px 28px auto;
+  }
+
+  .admin-event.compact .admin-event-actions {
+    @apply gap-1;
+  }
+
+  .admin-event.compact .icon-button {
+    @apply min-h-8 w-8;
+  }
+
+  .admin-event-main {
+    @apply min-w-0 flex-1;
+  }
+
+  .admin-event-title {
+    @apply flex min-w-0 flex-wrap items-center gap-[9px];
+  }
+
+  .admin-event h3 {
+    @apply m-0 min-w-0 flex-1 truncate text-sm;
+  }
+
+  .admin-event time {
+    @apply truncate text-[0.68rem] font-bold text-[#aeb8c8];
+  }
+
+  .visibility-state {
+    @apply flex h-7 w-7 items-center justify-center text-[#8cc7ff];
+  }
+
+  .pill {
+    @apply rounded-full border px-2 py-[3px] text-[0.7rem] font-black uppercase;
+  }
+
+  .pill.published {
+    @apply border-[#39d98a] text-[#86efb8];
+  }
+
+  .pill.draft {
+    @apply border-[#9fabbd] text-[#cbd5e1];
+  }
+
+  .spin {
+    animation: spin 0.8s linear infinite;
+  }
+
+  @keyframes spin {
+    to {
+      transform: rotate(360deg);
+    }
+  }
+
+  @media (max-width: 860px) {
+    .app-shell,
+    .public-shell,
+    .setup-shell,
+    .auth-shell {
+      width: min(100% - 20px, 1200px);
+      @apply pt-[18px];
+    }
+
+    .topbar,
+    .admin-event {
+      @apply flex-col items-stretch;
+    }
+
+    .topbar h1 {
+      @apply text-[1.75rem];
+    }
+
+    .admin-layout,
+    .event-popover dl,
+    .event-info-panel dl,
+    .two-col {
+      @apply grid-cols-1;
+    }
+
+    .admin-shell {
+      width: min(100% - 20px, 1200px);
+    }
+
+    .admin-event.compact {
+      grid-template-columns: minmax(0, 1fr) auto;
+    }
+
+    .admin-event time,
+    .visibility-state {
+      @apply hidden;
+    }
+
+    .admin-tools {
+      @apply static;
+    }
+
+    .calendar-columns {
+      @apply min-w-full;
+    }
+
+    .calendar-board {
+      --day-width: 190px;
+    }
+
+    .date-column {
+      min-width: var(--day-width);
+    }
+  }
+}

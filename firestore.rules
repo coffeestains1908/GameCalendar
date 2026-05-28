@@ -1,0 +1,166 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function adminEmails() {
+      return [
+        "mdanish1908@gmail.com"
+      ];
+    }
+
+    function isAdmin() {
+      return request.auth != null
+        && request.auth.token.email in adminEmails();
+    }
+
+    function requiredEventFields() {
+      return [
+        "title",
+        "gameMaster",
+        "game",
+        "location",
+        "description",
+        "startAt",
+        "endAt",
+        "published",
+        "createdAt",
+        "updatedAt"
+      ];
+    }
+
+    function allowedEventFields() {
+      return [
+        "title",
+        "gameMaster",
+        "game",
+        "gameColor",
+        "location",
+        "description",
+        "startAt",
+        "endAt",
+        "published",
+        "createdAt",
+        "updatedAt"
+      ];
+    }
+
+    function hasOnlyEventFields() {
+      return request.resource.data.keys().hasOnly(allowedEventFields());
+    }
+
+    function hasAllEventFields() {
+      return request.resource.data.keys().hasAll(requiredEventFields());
+    }
+
+    function isNonEmptyString(field, maxLength) {
+      return request.resource.data[field] is string
+        && request.resource.data[field].size() > 0
+        && request.resource.data[field].size() <= maxLength;
+    }
+
+    function isValidEventData() {
+      return hasOnlyEventFields()
+        && hasAllEventFields()
+        && isNonEmptyString("title", 140)
+        && isNonEmptyString("gameMaster", 120)
+        && isNonEmptyString("game", 120)
+        && (
+          !request.resource.data.keys().hasAny(["gameColor"])
+          || (
+            request.resource.data.gameColor is string
+            && request.resource.data.gameColor.matches("^#[0-9A-Fa-f]{6}$")
+          )
+        )
+        && isNonEmptyString("location", 180)
+        && isNonEmptyString("description", 3000)
+        && request.resource.data.startAt is timestamp
+        && request.resource.data.endAt is timestamp
+        && request.resource.data.endAt > request.resource.data.startAt
+        && request.resource.data.published is bool;
+    }
+
+    function isValidNewEvent() {
+      return isValidEventData()
+        && request.resource.data.createdAt == request.time
+        && request.resource.data.updatedAt == request.time;
+    }
+
+    function isValidEventUpdate() {
+      return isValidEventData()
+        && request.resource.data.createdAt == resource.data.createdAt
+        && request.resource.data.updatedAt == request.time;
+    }
+
+    match /events/{eventId} {
+      allow read: if resource.data.published == true || isAdmin();
+      allow create: if isAdmin() && isValidNewEvent();
+      allow update: if isAdmin() && isValidEventUpdate();
+      allow delete: if isAdmin();
+    }
+
+    function requiredGameFields() {
+      return [
+        "name",
+        "color",
+        "createdAt",
+        "updatedAt"
+      ];
+    }
+
+    function isValidGameData() {
+      return request.resource.data.keys().hasOnly(requiredGameFields())
+        && request.resource.data.keys().hasAll(requiredGameFields())
+        && request.resource.data.name is string
+        && request.resource.data.name.size() > 0
+        && request.resource.data.name.size() <= 120
+        && request.resource.data.color is string
+        && request.resource.data.color.matches("^#[0-9A-Fa-f]{6}$");
+    }
+
+    match /games/{gameId} {
+      allow read: if true;
+      allow create: if isAdmin()
+        && isValidGameData()
+        && request.resource.data.createdAt == request.time
+        && request.resource.data.updatedAt == request.time;
+      allow update: if isAdmin()
+        && isValidGameData()
+        && request.resource.data.createdAt == resource.data.createdAt
+        && request.resource.data.updatedAt == request.time;
+      allow delete: if isAdmin();
+    }
+
+    function requiredGameMasterFields() {
+      return [
+        "name",
+        "createdAt",
+        "updatedAt"
+      ];
+    }
+
+    function isValidGameMasterData() {
+      return request.resource.data.keys().hasOnly(requiredGameMasterFields())
+        && request.resource.data.keys().hasAll(requiredGameMasterFields())
+        && request.resource.data.name is string
+        && request.resource.data.name.size() > 0
+        && request.resource.data.name.size() <= 120;
+    }
+
+    match /gameMasters/{gameMasterId} {
+      allow read: if true;
+      allow create: if isAdmin()
+        && isValidGameMasterData()
+        && request.resource.data.createdAt == request.time
+        && request.resource.data.updatedAt == request.time;
+      allow update: if isAdmin()
+        && isValidGameMasterData()
+        && request.resource.data.createdAt == resource.data.createdAt
+        && request.resource.data.updatedAt == request.time;
+      allow delete: if isAdmin();
+    }
+
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}
