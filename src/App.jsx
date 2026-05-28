@@ -305,13 +305,16 @@ function PublicCalendar({ navigate }) {
       )}
 
       {activeSegment && (
-        <EventPopover
-          event={activeSegment.event}
-          position={activeSegment.position}
-          canEdit={isAllowedAdmin(user)}
-          onEdit={() => navigate(`/admin?edit=${encodeURIComponent(activeSegment.event.id)}`)}
-          onClose={() => setActiveSegment(null)}
-        />
+        <>
+          <div className="event-popover-backdrop" />
+          <EventPopover
+            event={activeSegment.event}
+            position={activeSegment.position}
+            canEdit={isAllowedAdmin(user)}
+            onEdit={() => navigate(`/admin?edit=${encodeURIComponent(activeSegment.event.id)}`)}
+            onClose={() => setActiveSegment(null)}
+          />
+        </>
       )}
 
       <footer className="public-footer">Created and maintained by Danish</footer>
@@ -367,7 +370,15 @@ function DateTimeline({ dateKey, isToday, segments, activeSegmentKey, onToggle }
 
 function EventPopover({ event, position, canEdit, onEdit, onClose }) {
   const [copied, setCopied] = useState(false);
+  const [isMobile, setIsMobile] = useState(window.matchMedia('(max-width: 860px)').matches);
   const shareUrl = `${window.location.origin}/event/${encodeURIComponent(event.id)}`;
+
+  useEffect(() => {
+    const media = window.matchMedia('(max-width: 860px)');
+    const update = () => setIsMobile(media.matches);
+    media.addEventListener('change', update);
+    return () => media.removeEventListener('change', update);
+  }, []);
 
   const copyLink = async () => {
     await navigator.clipboard.writeText(shareUrl);
@@ -380,7 +391,7 @@ function EventPopover({ event, position, canEdit, onEdit, onClose }) {
       className="event-popover"
       role="dialog"
       aria-label={`${event.title} details`}
-      style={{
+      style={isMobile ? undefined : {
         left: `${position.left}px`,
         top: `${position.top}px`,
         width: `${position.width}px`,
