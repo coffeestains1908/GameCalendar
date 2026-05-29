@@ -15,77 +15,39 @@
 
   body {
     @apply relative m-0 min-h-screen min-w-80 overflow-x-hidden bg-[#101216] text-[#f4f7fb];
-    background:
-      radial-gradient(circle at 18% 12%, rgb(81 60 145 / 0.22), transparent 28%),
-      radial-gradient(circle at 78% 8%, rgb(37 122 148 / 0.18), transparent 24%),
-      linear-gradient(135deg, rgb(27 21 47 / 0.92) 0%, rgb(16 18 22 / 0.98) 42%, rgb(9 11 15) 100%);
-  }
-
-  body::before,
-  body::after,
-  #root::before {
-    content: "";
-    @apply pointer-events-none fixed inset-0;
   }
 
   body::before {
-    z-index: 0;
+    content: "";
+    @apply pointer-events-none fixed inset-0 z-0;
     background:
-      radial-gradient(circle, rgb(244 247 251 / 0.72) 0 1px, transparent 1.5px) 24px 32px / 132px 132px,
-      radial-gradient(circle, rgb(140 199 255 / 0.46) 0 1px, transparent 1.5px) 88px 14px / 176px 176px,
-      radial-gradient(circle, rgb(211 184 255 / 0.42) 0 1px, transparent 1.5px) 12px 92px / 214px 214px;
-    animation: star-drift 52s linear infinite;
-  }
-
-  body::after {
-    z-index: 0;
-    background:
-      linear-gradient(180deg, rgb(16 18 22 / 0.05), rgb(16 18 22 / 0.78)),
-      radial-gradient(ellipse at 50% -12%, rgb(127 93 219 / 0.18), transparent 42%);
+      radial-gradient(ellipse at -12% 18%, rgb(79 54 158 / 0.24) 0%, rgb(79 54 158 / 0.1) 22%, transparent 48%),
+      radial-gradient(ellipse at 112% 28%, rgb(27 118 151 / 0.2) 0%, rgb(27 118 151 / 0.08) 24%, transparent 50%),
+      radial-gradient(ellipse at 50% 112%, rgb(121 64 138 / 0.16) 0%, rgb(121 64 138 / 0.07) 24%, transparent 52%),
+      rgb(9 11 15);
+    animation: galaxy-hue-shift 34s ease-in-out infinite alternate;
   }
 
   #root {
     @apply relative z-10;
+    isolation: isolate;
   }
 
-  #root::before {
-    z-index: -1;
-    background:
-      radial-gradient(circle, rgb(255 255 255 / 0.86) 0 1px, transparent 1.5px) 42px 76px / 220px 220px,
-      radial-gradient(circle, rgb(181 220 255 / 0.72) 0 1px, transparent 1.5px) 160px 34px / 280px 280px,
-      radial-gradient(circle, rgb(226 204 255 / 0.7) 0 1px, transparent 1.5px) 98px 178px / 340px 340px;
-    animation: star-twinkle 4.8s ease-in-out infinite alternate;
+  .star-warp-canvas {
+    @apply pointer-events-none fixed inset-0 z-0;
   }
 
-  @keyframes star-drift {
+  .app-content {
+    @apply relative z-10;
+  }
+
+  @keyframes galaxy-hue-shift {
     from {
-      background-position:
-        24px 32px,
-        88px 14px,
-        12px 92px;
+      filter: hue-rotate(0deg) saturate(0.9) brightness(0.82);
     }
 
     to {
-      background-position:
-        64px 68px,
-        48px 52px,
-        42px 128px;
-    }
-  }
-
-  @keyframes star-twinkle {
-    0%,
-    34% {
-      opacity: 0.18;
-    }
-
-    52% {
-      opacity: 0.78;
-    }
-
-    72%,
-    100% {
-      opacity: 0.32;
+      filter: hue-rotate(48deg) saturate(1.08) brightness(0.74);
     }
   }
 

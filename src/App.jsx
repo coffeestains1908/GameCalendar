@@ -123,8 +123,11 @@ export function App() {
   if (!firebaseReady) {
     return (
       <>
-        <SetupMissing />
-        <CreditFooter />
+        <StarWarpBackground />
+        <div className="app-content">
+          <SetupMissing />
+          <CreditFooter />
+        </div>
       </>
     );
   }
@@ -142,16 +145,138 @@ export function App() {
 
   return (
     <>
-      {page}
-      <CreditFooter />
+      <StarWarpBackground />
+      <div className="app-content">
+        {page}
+        <CreditFooter />
+      </div>
     </>
   );
+}
+
+function StarWarpBackground() {
+  const canvasRef = useRef(null);
+
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return undefined;
+
+    const context = canvas.getContext('2d');
+    if (!context) return undefined;
+
+    const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    const center = { x: window.innerWidth / 2, y: window.innerHeight * 0.42 };
+    const stars = [];
+    let width = 0;
+    let height = 0;
+    let maxRadius = 0;
+    let animationFrame = 0;
+    let lastTime = performance.now();
+
+    const randomBetween = (min, max) => min + Math.random() * (max - min);
+
+    const resetStar = (star, fresh = false) => {
+      star.angle = randomBetween(0, Math.PI * 2);
+      star.distance = fresh ? randomBetween(12, maxRadius) : randomBetween(6, 42);
+      star.speed = randomBetween(38, 105);
+      star.size = randomBetween(0.65, 1.55);
+      star.interval = randomBetween(2.4, 7.2);
+      star.offset = randomBetween(0, star.interval);
+      star.tint = Math.random() > 0.62 ? '181, 220, 255' : '244, 247, 251';
+    };
+
+    const resize = () => {
+      const ratio = Math.min(window.devicePixelRatio || 1, 2);
+      width = window.innerWidth;
+      height = window.innerHeight;
+      maxRadius = Math.hypot(width, height);
+      center.x = width / 2;
+      center.y = height * 0.42;
+      canvas.width = Math.floor(width * ratio);
+      canvas.height = Math.floor(height * ratio);
+      canvas.style.width = `${width}px`;
+      canvas.style.height = `${height}px`;
+      context.setTransform(ratio, 0, 0, ratio, 0, 0);
+      if (stars.length === 0) {
+        const count = Math.min(190, Math.max(105, Math.floor((width * height) / 6200)));
+        for (let index = 0; index < count; index += 1) {
+          const star = {};
+          resetStar(star, true);
+          stars.push(star);
+        }
+      }
+    };
+
+    const drawStar = (star, elapsedSeconds, deltaSeconds) => {
+      if (!reducedMotion) {
+        star.distance += star.speed * deltaSeconds * (1 + star.distance / maxRadius);
+      }
+
+      const x = center.x + Math.cos(star.angle) * star.distance;
+      const y = center.y + Math.sin(star.angle) * star.distance;
+      if (x < -90 || x > width + 90 || y < -90 || y > height + 90) {
+        resetStar(star);
+        return;
+      }
+
+      const cycle = (elapsedSeconds + star.offset) % star.interval;
+      const burst = cycle < 0.34 ? 1 - cycle / 0.34 : 0;
+      const depth = Math.min(1, star.distance / maxRadius);
+      const opacity = 0.3 + depth * 0.56;
+      const size = star.size + depth * 1.4;
+
+      if (burst > 0.02 && !reducedMotion) {
+        const lineLength = 20 + depth * 72 + burst * 68;
+        const tailX = x - Math.cos(star.angle) * lineLength;
+        const tailY = y - Math.sin(star.angle) * lineLength;
+        const gradient = context.createLinearGradient(tailX, tailY, x, y);
+        gradient.addColorStop(0, `rgba(${star.tint}, ${0.2 + burst * 0.54})`);
+        gradient.addColorStop(0.34, `rgba(${star.tint}, ${0.1 + burst * 0.28})`);
+        gradient.addColorStop(1, `rgba(${star.tint}, 0)`);
+        context.strokeStyle = gradient;
+        context.lineWidth = 0.7 + burst * 1.25;
+        context.beginPath();
+        context.moveTo(tailX, tailY);
+        context.lineTo(x, y);
+        context.stroke();
+      }
+
+      context.fillStyle = `rgba(${star.tint}, ${opacity})`;
+      context.beginPath();
+      context.arc(x, y, size, 0, Math.PI * 2);
+      context.fill();
+    };
+
+    const render = (time) => {
+      const deltaSeconds = Math.min((time - lastTime) / 1000, 0.05);
+      const elapsedSeconds = time / 1000;
+      lastTime = time;
+
+      context.clearRect(0, 0, width, height);
+      context.globalCompositeOperation = 'screen';
+      stars.forEach((star) => drawStar(star, elapsedSeconds, deltaSeconds));
+      context.globalCompositeOperation = 'source-over';
+
+      animationFrame = window.requestAnimationFrame(render);
+    };
+
+    resize();
+    window.addEventListener('resize', resize);
+    animationFrame = window.requestAnimationFrame(render);
+
+    return () => {
+      window.cancelAnimationFrame(animationFrame);
+      window.removeEventListener('resize', resize);
+    };
+  }, []);
+
+  return <canvas className="star-warp-canvas" ref={canvasRef} aria-hidden="true" />;
 }
 
 function CreditFooter() {
   return (
     <footer className="public-footer">
-      <strong>v1.01</strong>
+      <strong>v1.02</strong>
       <span>Created and maintained by Danish</span>
     </footer>
   );
