@@ -1,5 +1,21 @@
 @import "tailwindcss";
 
+@font-face {
+  font-family: "FacultyGlyphic-Regular";
+  src: url("./assets/fonts/FacultyGlyphic-Regular.ttf") format("truetype");
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "MajorMonoDisplay-Regular";
+  src: url("./assets/fonts/MajorMonoDisplay-Regular.ttf") format("truetype");
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+
 @layer base {
   :root {
     color-scheme: dark;
@@ -98,7 +114,30 @@
   }
 
   .public-shell .topbar {
-    @apply mx-4 mt-[100px] mb-3;
+    @apply relative mx-4 mt-[100px] mb-3 items-center justify-center text-center;
+  }
+
+  .public-shell .topbar .topbar-actions {
+    @apply absolute right-0 bottom-1;
+  }
+
+  .topbar-title {
+    width: min(760px, 100%);
+    @apply mx-auto;
+  }
+
+  .topbar-title h1 {
+    font-family: "MajorMonoDisplay-Regular", Inter, ui-sans-serif, system-ui, sans-serif;
+    @apply mt-0 mb-1.5 font-normal;
+  }
+
+  .topbar-title .eyebrow {
+    @apply mb-0 text-[0.68rem];
+  }
+
+  .quote-banner {
+    font-family: "FacultyGlyphic-Regular", Inter, ui-sans-serif, system-ui, sans-serif;
+    @apply mx-auto mt-1.5 mb-0 text-center text-[0.62rem] leading-snug text-[#d8dde7] drop-shadow-[0_2px_14px_rgb(0_0_0_/_0.65)];
   }
 
   .public-footer {
@@ -574,15 +613,31 @@
     }
 
     .public-shell .topbar {
-      @apply mx-3 mt-[100px] mb-2 flex-row items-end;
-    }
-
-    .public-shell .topbar > div:first-child {
-      @apply min-w-0 flex-1;
+      @apply mx-3 mt-[76px] mb-2 flex-col items-center justify-center;
     }
 
     .public-shell .topbar .topbar-actions {
-      @apply shrink-0 justify-end;
+      @apply static mt-3 justify-center;
+    }
+
+    .topbar-title {
+      width: min(100%, 540px);
+    }
+
+    .topbar-title .eyebrow {
+      @apply text-[0.62rem];
+    }
+
+    .quote-banner {
+      @apply text-[0.56rem];
+    }
+
+    .public-shell .topbar > div:first-child {
+      @apply min-w-0;
+    }
+
+    .public-shell .topbar .topbar-actions {
+      @apply justify-center;
     }
 
     .topbar h1 {

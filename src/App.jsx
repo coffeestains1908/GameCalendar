@@ -29,6 +29,7 @@ import {
 } from 'firebase/auth';
 import { auth, firebaseReady, isAllowedAdmin } from './firebase.js';
 import { toInlineError, toUserError } from './errors.js';
+import quotes from './data/quotes.json';
 import {
   createEvent,
   createGame,
@@ -74,6 +75,10 @@ const emptyForm = {
   endTime: '22:00',
   published: true,
 };
+
+const quoteTexts = quotes
+  .map((entry) => entry.quote)
+  .filter((quote) => typeof quote === 'string' && quote.trim().length > 0);
 
 const googleDatePartFormatter = new Intl.DateTimeFormat('en-CA', {
   timeZone: MALAYSIA_TIME_ZONE,
@@ -341,6 +346,10 @@ function PublicCalendar({ navigate }) {
 
   const grouped = useMemo(() => groupSegments(events), [events]);
   const monthGroups = useMemo(() => groupMonths(grouped), [grouped]);
+  const randomQuote = useMemo(() => {
+    if (quoteTexts.length === 0) return '';
+    return quoteTexts[Math.floor(Math.random() * quoteTexts.length)];
+  }, []);
   const todayKey = formatDateKey(new Date());
 
   useEffect(() => {
@@ -428,9 +437,10 @@ function PublicCalendar({ navigate }) {
   return (
     <main className="public-shell">
       <header className="topbar">
-        <div>
+        <div className="topbar-title">
+          <h1>ChRonoC0deX</h1>
           <p className="eyebrow">Malaysia time / 30 days back and 60 ahead</p>
-          <h1>Chronocodex</h1>
+          {randomQuote && <QuoteBanner quote={randomQuote} />}
         </div>
         <div className="topbar-actions">
           <button className="button secondary compact-action" type="button" onClick={loadEvents} title="Refresh events">
@@ -510,6 +520,14 @@ function PublicCalendar({ navigate }) {
       )}
 
     </main>
+  );
+}
+
+function QuoteBanner({ quote }) {
+  return (
+    <p className="quote-banner" aria-label="Random quote">
+      &ldquo;{quote}&rdquo;
+    </p>
   );
 }
 
