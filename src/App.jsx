@@ -80,6 +80,37 @@ const quoteTexts = quotes
   .map((entry) => entry.quote)
   .filter((quote) => typeof quote === 'string' && quote.trim().length > 0);
 
+function getRandomQuote() {
+  if (quoteTexts.length === 0) return '';
+  return quoteTexts[Math.floor(Math.random() * quoteTexts.length)];
+}
+
+function getTypingErrorGlyph(expectedCharacter) {
+  let glyph = matrixGlyphs[Math.floor(Math.random() * matrixGlyphs.length)];
+  while (glyph === expectedCharacter) {
+    glyph = matrixGlyphs[Math.floor(Math.random() * matrixGlyphs.length)];
+  }
+  return glyph;
+}
+const titleText = 'ChRonoC0deX';
+const matrixGlyphs = 'アイウエオカキクケコサシスセソタチツテト0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+
+function createMatrixTitleFrame(text) {
+  const characters = [...text];
+  const swapCount = Math.max(1, Math.ceil(characters.length * 0.28));
+  const swappedIndexes = new Set();
+
+  while (swappedIndexes.size < swapCount) {
+    swappedIndexes.add(Math.floor(Math.random() * characters.length));
+  }
+
+  swappedIndexes.forEach((index) => {
+    characters[index] = matrixGlyphs[Math.floor(Math.random() * matrixGlyphs.length)];
+  });
+
+  return characters.join('');
+}
+
 const googleDatePartFormatter = new Intl.DateTimeFormat('en-CA', {
   timeZone: MALAYSIA_TIME_ZONE,
   year: 'numeric',
@@ -346,9 +377,12 @@ function PublicCalendar({ navigate }) {
 
   const grouped = useMemo(() => groupSegments(events), [events]);
   const monthGroups = useMemo(() => groupMonths(grouped), [grouped]);
-  const randomQuote = useMemo(() => {
-    if (quoteTexts.length === 0) return '';
-    return quoteTexts[Math.floor(Math.random() * quoteTexts.length)];
+  const [activeQuote, setActiveQuote] = useState(getRandomQuote);
+
+  useEffect(() => {
+    if (quoteTexts.length === 0) return undefined;
+    const interval = window.setInterval(() => setActiveQuote(getRandomQuote()), 60_000);
+    return () => window.clearInterval(interval);
   }, []);
   const todayKey = formatDateKey(new Date());
 
@@ -438,9 +472,9 @@ function PublicCalendar({ navigate }) {
     <main className="public-shell">
       <header className="topbar">
         <div className="topbar-title">
-          <h1>ChRonoC0deX</h1>
+          <MatrixTitle text={titleText} />
           <p className="eyebrow">Malaysia time / 30 days back and 60 ahead</p>
-          {randomQuote && <QuoteBanner quote={randomQuote} />}
+          {activeQuote && <QuoteBanner quote={activeQuote} />}
         </div>
         <div className="topbar-actions">
           <button className="button secondary compact-action" type="button" onClick={loadEvents} title="Refresh events">
@@ -506,6 +540,12 @@ function PublicCalendar({ navigate }) {
         </section>
       )}
 
+      <div className="schedule-cta">
+        <span>Want to schedule in your game? Send me a</span>
+        <a href="https://wa.me/60102083434" target="_blank" rel="noreferrer">WhatsApp</a>
+        <span>!</span>
+      </div>
+
       {activeSegment && (
         <>
           <div className="event-popover-backdrop" />
@@ -523,11 +563,99 @@ function PublicCalendar({ navigate }) {
   );
 }
 
-function QuoteBanner({ quote }) {
+function MatrixTitle({ text }) {
+  const [displayText, setDisplayText] = useState(text);
+
+  useEffect(() => {
+    const media = window.matchMedia("(prefers-reduced-motion: reduce)");
+    if (media.matches) return undefined;
+
+    let restoreTimeout = 0;
+    const animate = () => {
+      setDisplayText(createMatrixTitleFrame(text));
+      window.clearTimeout(restoreTimeout);
+      restoreTimeout = window.setTimeout(() => setDisplayText(text), 450);
+    };
+
+    const firstRun = window.setTimeout(animate, 2_000);
+    const interval = window.setInterval(animate, 6_000);
+
+    return () => {
+      window.clearTimeout(firstRun);
+      window.clearTimeout(restoreTimeout);
+      window.clearInterval(interval);
+    };
+  }, [text]);
+
   return (
-    <p className="quote-banner" aria-label="Random quote">
-      &ldquo;{quote}&rdquo;
-    </p>
+    <h1 className="matrix-title" aria-label={text}>
+      {[...displayText].map((character, index) => (
+        <span
+          aria-hidden="true"
+          className={character === text[index] ? undefined : "matrix-title-glitch"}
+          key={index}
+        >
+          {character}
+        </span>
+      ))}
+    </h1>
+  );
+}
+
+function QuoteBanner({ quote }) {
+  const [displayQuote, setDisplayQuote] = useState(quote);
+  const [typing, setTyping] = useState(false);
+
+  useEffect(() => {
+    const media = window.matchMedia("(prefers-reduced-motion: reduce)");
+    if (media.matches) {
+      setDisplayQuote(quote);
+      setTyping(false);
+      return undefined;
+    }
+
+    let index = 0;
+    let timeout = 0;
+    let fixingMistake = false;
+    setDisplayQuote("");
+    setTyping(true);
+
+    const typeNext = () => {
+      if (index >= quote.length) {
+        setTyping(false);
+        return;
+      }
+
+      const nextCharacter = quote[index];
+      const canMistype = !fixingMistake && nextCharacter !== " " && nextCharacter !== "\n" && quote.length > 18;
+
+      if (canMistype && Math.random() < 0.11) {
+        fixingMistake = true;
+        setDisplayQuote(`${quote.slice(0, index)}${getTypingErrorGlyph(nextCharacter)}`);
+        timeout = window.setTimeout(() => {
+          setDisplayQuote(quote.slice(0, index));
+          timeout = window.setTimeout(typeNext, 110);
+        }, 230);
+        return;
+      }
+
+      fixingMistake = false;
+      index += 1;
+      setDisplayQuote(quote.slice(0, index));
+      timeout = window.setTimeout(typeNext, 45 + Math.random() * 35);
+    };
+
+    timeout = window.setTimeout(typeNext, 180);
+
+    return () => window.clearTimeout(timeout);
+  }, [quote]);
+
+  return (
+    <p
+      className={typing ? "quote-banner is-typing" : "quote-banner"}
+      aria-label="Random quote"
+      dangerouslySetInnerHTML={{ __html: `&ldquo;${displayQuote}<span class="quote-caret" aria-hidden="true">|</span>&rdquo;` }}
+    />
   );
 }
 

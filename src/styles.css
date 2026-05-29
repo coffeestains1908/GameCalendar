@@ -74,7 +74,7 @@
   }
 
   button {
-    @apply cursor-pointer;
+    @apply cursor-pointer select-none;
   }
 
   code {
@@ -114,7 +114,7 @@
   }
 
   .public-shell .topbar {
-    @apply relative mx-4 mt-[100px] mb-3 items-center justify-center text-center;
+    @apply relative mx-4 mt-[100px] mb-3 select-none items-center justify-center text-center;
   }
 
   .public-shell .topbar .topbar-actions {
@@ -122,6 +122,7 @@
   }
 
   .topbar-title {
+    container-type: inline-size;
     width: min(760px, 100%);
     @apply mx-auto;
   }
@@ -131,17 +132,60 @@
     @apply mt-0 mb-1.5 font-normal;
   }
 
+  .matrix-title {
+    letter-spacing: 0;
+    text-shadow: 0 0 16px rgb(75 255 156 / 0.26);
+  }
+
+  .matrix-title span {
+    display: inline-block;
+    min-width: 0.72em;
+    transition: color 120ms ease, text-shadow 120ms ease;
+  }
+
+  .matrix-title-glitch {
+    color: #72ffae;
+    text-shadow:
+      0 0 8px rgb(114 255 174 / 0.72),
+      0 0 18px rgb(47 246 126 / 0.42);
+  }
+
   .topbar-title .eyebrow {
     @apply mb-0 text-[0.68rem];
   }
 
   .quote-banner {
     font-family: "FacultyGlyphic-Regular", Inter, ui-sans-serif, system-ui, sans-serif;
-    @apply mx-auto mt-1.5 mb-0 text-center text-[0.62rem] leading-snug text-[#d8dde7] drop-shadow-[0_2px_14px_rgb(0_0_0_/_0.65)];
+    width: min(680px, 100%);
+    min-height: calc(3 * 1.22em);
+    max-height: calc(3 * 1.22em);
+    overflow: hidden;
+    font-size: clamp(0.68rem, 1.8cqw, 0.94rem);
+    line-height: 1.22;
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 3;
+    line-clamp: 3;
+    @apply mx-auto mt-1.5 mb-0 text-center text-[#d8dde7] drop-shadow-[0_2px_14px_rgb(0_0_0_/_0.65)];
+  }
+
+  .quote-caret {
+    display: inline-block;
+    margin-left: 0.08em;
+    color: #72ffae;
+    text-shadow: 0 0 8px rgb(114 255 174 / 0.48);
+    animation: quote-caret-blink 1.15s steps(1, end) infinite;
+    will-change: opacity;
+  }
+
+  @keyframes quote-caret-blink {
+    50% {
+      opacity: 0;
+    }
   }
 
   .public-footer {
-    @apply fixed bottom-3 left-1/2 z-40 flex -translate-x-1/2 items-center gap-2 rounded-full border border-[#27303d] bg-[#101216]/85 px-3 py-1.5 text-xs text-[#78859a] backdrop-blur;
+    @apply fixed bottom-3 left-1/2 z-40 flex -translate-x-1/2 select-none items-center gap-2 rounded-full border border-[#27303d] bg-[#101216]/85 px-3 py-1.5 text-xs text-[#78859a] backdrop-blur;
   }
 
   .public-footer strong {
@@ -207,7 +251,7 @@
   }
 
   .eyebrow {
-    @apply m-0 text-[0.78rem] font-extrabold uppercase tracking-normal text-[#8cc7ff];
+    @apply m-0 text-[0.78rem] font-medium uppercase tracking-normal text-[#8cc7ff];
   }
 
   .button,
@@ -262,6 +306,19 @@
 
   .calendar-board.is-panning {
     @apply cursor-grabbing;
+  }
+
+  .schedule-cta {
+    @apply flex flex-wrap items-center justify-center gap-1.5 px-4 pt-5 pb-20 text-center text-sm font-bold text-[#8d98aa];
+  }
+
+  .schedule-cta a {
+    @apply rounded-full border border-[#39d98a]/45 bg-[#102019]/70 px-2.5 py-0.5 font-extrabold text-[#86efb8] no-underline transition;
+  }
+
+  .schedule-cta a:hover,
+  .schedule-cta a:focus-visible {
+    @apply border-[#72ffae] bg-[#143024] text-[#d8ffe7];
   }
 
   .calendar-month-row {
@@ -629,7 +686,8 @@
     }
 
     .quote-banner {
-      @apply text-[0.56rem];
+      width: min(100%, 500px);
+      font-size: clamp(0.52rem, 2.5cqw, 0.68rem);
     }
 
     .public-shell .topbar > div:first-child {
