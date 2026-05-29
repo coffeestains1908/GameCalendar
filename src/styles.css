@@ -14,8 +14,79 @@
   }
 
   body {
-    @apply m-0 min-h-screen min-w-80 bg-[#101216] text-[#f4f7fb];
-    background: linear-gradient(180deg, #151820 0%, #101216 36%, #0c0e12 100%);
+    @apply relative m-0 min-h-screen min-w-80 overflow-x-hidden bg-[#101216] text-[#f4f7fb];
+    background:
+      radial-gradient(circle at 18% 12%, rgb(81 60 145 / 0.22), transparent 28%),
+      radial-gradient(circle at 78% 8%, rgb(37 122 148 / 0.18), transparent 24%),
+      linear-gradient(135deg, rgb(27 21 47 / 0.92) 0%, rgb(16 18 22 / 0.98) 42%, rgb(9 11 15) 100%);
+  }
+
+  body::before,
+  body::after,
+  #root::before {
+    content: "";
+    @apply pointer-events-none fixed inset-0;
+  }
+
+  body::before {
+    z-index: 0;
+    background:
+      radial-gradient(circle, rgb(244 247 251 / 0.72) 0 1px, transparent 1.5px) 24px 32px / 132px 132px,
+      radial-gradient(circle, rgb(140 199 255 / 0.46) 0 1px, transparent 1.5px) 88px 14px / 176px 176px,
+      radial-gradient(circle, rgb(211 184 255 / 0.42) 0 1px, transparent 1.5px) 12px 92px / 214px 214px;
+    animation: star-drift 52s linear infinite;
+  }
+
+  body::after {
+    z-index: 0;
+    background:
+      linear-gradient(180deg, rgb(16 18 22 / 0.05), rgb(16 18 22 / 0.78)),
+      radial-gradient(ellipse at 50% -12%, rgb(127 93 219 / 0.18), transparent 42%);
+  }
+
+  #root {
+    @apply relative z-10;
+  }
+
+  #root::before {
+    z-index: -1;
+    background:
+      radial-gradient(circle, rgb(255 255 255 / 0.86) 0 1px, transparent 1.5px) 42px 76px / 220px 220px,
+      radial-gradient(circle, rgb(181 220 255 / 0.72) 0 1px, transparent 1.5px) 160px 34px / 280px 280px,
+      radial-gradient(circle, rgb(226 204 255 / 0.7) 0 1px, transparent 1.5px) 98px 178px / 340px 340px;
+    animation: star-twinkle 4.8s ease-in-out infinite alternate;
+  }
+
+  @keyframes star-drift {
+    from {
+      background-position:
+        24px 32px,
+        88px 14px,
+        12px 92px;
+    }
+
+    to {
+      background-position:
+        64px 68px,
+        48px 52px,
+        42px 128px;
+    }
+  }
+
+  @keyframes star-twinkle {
+    0%,
+    34% {
+      opacity: 0.18;
+    }
+
+    52% {
+      opacity: 0.78;
+    }
+
+    72%,
+    100% {
+      opacity: 0.32;
+    }
   }
 
   button,
@@ -65,11 +136,24 @@
   }
 
   .public-shell .topbar {
-    @apply mx-4;
+    @apply mx-4 mt-[100px] mb-3;
   }
 
   .public-footer {
-    @apply fixed bottom-3 left-1/2 z-40 -translate-x-1/2 rounded-full border border-[#27303d] bg-[#101216]/85 px-3 py-1.5 text-xs font-bold text-[#78859a] backdrop-blur;
+    @apply fixed bottom-3 left-1/2 z-40 flex -translate-x-1/2 items-center gap-2 rounded-full border border-[#27303d] bg-[#101216]/85 px-3 py-1.5 text-xs text-[#78859a] backdrop-blur;
+  }
+
+  .public-footer strong {
+    @apply font-extrabold text-[#d8dde7];
+  }
+
+  .public-footer span {
+    @apply text-[#78859a];
+  }
+
+  .public-footer span::before {
+    content: "|";
+    @apply mr-2 text-[#4f5b6d];
   }
 
   .setup-shell,
@@ -108,7 +192,7 @@
   }
 
   .topbar {
-    @apply mb-6 flex items-center justify-between gap-5;
+    @apply mb-6 flex items-end justify-between gap-5;
   }
 
   .topbar h1 {
@@ -127,7 +211,7 @@
 
   .button,
   .icon-button {
-    @apply inline-flex min-h-[42px] items-center justify-center gap-2 rounded-lg border border-[#4f89ff] bg-[#2f6df6] px-3.5 font-extrabold text-white;
+    @apply inline-flex min-h-[42px] items-center justify-center gap-2 rounded-lg border border-[#4f89ff] bg-[#2f6df6] px-3.5 font-extrabold text-white no-underline;
   }
 
   .button.secondary,
@@ -137,6 +221,10 @@
 
   .button.full {
     @apply w-full;
+  }
+
+  .button.compact-action {
+    @apply min-h-9 flex-row gap-1.5 whitespace-nowrap px-3 py-1.5 text-sm leading-none;
   }
 
   .icon-button {
@@ -165,7 +253,7 @@
   }
 
   .calendar-board {
-    @apply w-screen cursor-grab select-none overflow-x-auto border-y border-[#26303f] bg-[#10141c];
+    @apply w-full cursor-grab select-none overflow-x-auto border-y border-[#26303f] bg-[#10141c];
     --day-width: 210px;
     scrollbar-width: thin;
     scrollbar-color: #3b4658 #10141c;
@@ -261,7 +349,7 @@
   }
 
   .event-bar-button {
-    @apply absolute top-1 bottom-1 z-10 flex min-w-6 cursor-pointer items-center gap-2 overflow-visible border px-2.5 text-left text-[0.82rem] font-black text-white;
+    @apply absolute top-1 bottom-1 z-10 flex min-w-6 cursor-pointer items-center overflow-visible border px-2 text-left text-[0.82rem] font-black text-white;
     touch-action: manipulation;
   }
 
@@ -299,43 +387,36 @@
   }
 
   .popover-actions {
-    @apply mb-3 flex flex-wrap gap-2;
-  }
-
-  .event-popover p {
-    @apply mt-0 mb-3.5 leading-relaxed text-[#d5deec];
-  }
-
-  .event-popover dl {
-    @apply m-0 grid grid-cols-2 gap-3;
-  }
-
-  .event-popover dt {
-    @apply flex items-center gap-1.5 text-[0.76rem] font-extrabold uppercase text-[#91a0b4];
-  }
-
-  .event-popover dd {
-    @apply mt-1 mb-0 text-[#f4f7fb];
+    @apply mb-3 flex flex-row flex-wrap items-center gap-2;
   }
 
   .event-info-panel {
     @apply mx-auto max-w-2xl rounded-lg border border-[#27303d] bg-[#171b23] p-5;
   }
 
-  .event-info-panel p {
-    @apply mt-0 mb-4 leading-relaxed text-[#d5deec];
+  .event-details {
+    @apply grid gap-2.5 text-sm font-bold text-[#f4f7fb];
   }
 
-  .event-info-panel dl {
-    @apply m-0 grid grid-cols-2 gap-3;
+  .event-detail-row {
+    @apply grid items-start gap-2;
+    grid-template-columns: 15px minmax(0, 1fr);
   }
 
-  .event-info-panel dt {
-    @apply flex items-center gap-1.5 text-[0.76rem] font-extrabold uppercase text-[#91a0b4];
+  .event-detail-row svg {
+    @apply mt-[3px] shrink-0 text-[#8cc7ff];
   }
 
-  .event-info-panel dd {
-    @apply mt-1 mb-0 text-[#f4f7fb];
+  .event-detail-row span {
+    @apply min-w-0;
+  }
+
+  .event-detail-row.description-row {
+    @apply text-[#d5deec];
+  }
+
+  .event-detail-row.description-row p {
+    @apply m-0 leading-relaxed;
   }
 
   .auth-heading {
@@ -530,19 +611,37 @@
       @apply flex-col items-stretch;
     }
 
+    .public-shell .topbar {
+      @apply mx-3 mt-[100px] mb-2 flex-row items-end;
+    }
+
+    .public-shell .topbar > div:first-child {
+      @apply min-w-0 flex-1;
+    }
+
+    .public-shell .topbar .topbar-actions {
+      @apply shrink-0 justify-end;
+    }
+
     .topbar h1 {
       @apply text-[1.75rem];
     }
 
+    .public-shell .topbar h1 {
+      @apply text-[1.55rem];
+    }
+
     .admin-layout,
-    .event-popover dl,
-    .event-info-panel dl,
     .two-col {
       @apply grid-cols-1;
     }
 
     .admin-shell {
       width: min(100% - 20px, 1200px);
+    }
+
+    .public-shell {
+      @apply w-full;
     }
 
     .admin-event.compact {

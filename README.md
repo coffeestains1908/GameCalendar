@@ -1,4 +1,4 @@
-# Game Calendar
+# Chronocodex
 
 A Firebase-hosted React + Vite calendar for game events. The public view shows ongoing and upcoming events as date-grouped 24-hour timelines. The admin view at `/admin` uses Firebase Auth and Firestore to manage events.
 

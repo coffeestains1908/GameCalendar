@@ -1,11 +1,13 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   CalendarDays,
+  CalendarPlus,
   CheckCircle2,
   ChevronDown,
   ChevronRight,
   Clock3,
   Copy,
+  FileText,
   X,
   Edit3,
   Eye,
@@ -52,6 +54,7 @@ import {
   getEventStatus,
   addDaysToDateKey,
   formatDateKey,
+  MALAYSIA_TIME_ZONE,
   malaysiaInputToDate,
   splitEventIntoDateSegments,
   toInputDate,
@@ -72,6 +75,37 @@ const emptyForm = {
   published: true,
 };
 
+const googleDatePartFormatter = new Intl.DateTimeFormat('en-CA', {
+  timeZone: MALAYSIA_TIME_ZONE,
+  year: 'numeric',
+  month: '2-digit',
+  day: '2-digit',
+  hour: '2-digit',
+  minute: '2-digit',
+  second: '2-digit',
+  hour12: false,
+});
+
+function formatGoogleCalendarDate(date) {
+  const parts = googleDatePartFormatter.formatToParts(date);
+  const part = (type) => parts.find((entry) => entry.type === type)?.value || '00';
+  return `${part('year')}${part('month')}${part('day')}T${part('hour')}${part('minute')}${part('second')}`;
+}
+
+function buildGoogleCalendarUrl(event, shareUrl) {
+  const details = [event.description, '', `Event link: ${shareUrl}`].filter(Boolean).join('\n');
+  const params = new URLSearchParams({
+    action: 'TEMPLATE',
+    text: event.title,
+    dates: `${formatGoogleCalendarDate(event.startAt)}/${formatGoogleCalendarDate(event.endAt)}`,
+    ctz: MALAYSIA_TIME_ZONE,
+    details,
+    location: event.location,
+  });
+
+  return `https://calendar.google.com/calendar/render?${params.toString()}`;
+}
+
 export function App() {
   const [route, setRoute] = useState(window.location.pathname);
 
@@ -87,17 +121,39 @@ export function App() {
   };
 
   if (!firebaseReady) {
-    return <SetupMissing />;
+    return (
+      <>
+        <SetupMissing />
+        <CreditFooter />
+      </>
+    );
   }
 
+  let page;
   if (route.startsWith('/event/')) {
-    return <EventInfoPage eventId={decodeURIComponent(route.replace('/event/', ''))} navigate={navigate} />;
+    page = <EventInfoPage eventId={decodeURIComponent(route.replace('/event/', ''))} navigate={navigate} />;
+  } else {
+    page = route.startsWith('/admin') ? (
+      <AdminView navigate={navigate} />
+    ) : (
+      <PublicCalendar navigate={navigate} />
+    );
   }
 
-  return route.startsWith('/admin') ? (
-    <AdminView navigate={navigate} />
-  ) : (
-    <PublicCalendar navigate={navigate} />
+  return (
+    <>
+      {page}
+      <CreditFooter />
+    </>
+  );
+}
+
+function CreditFooter() {
+  return (
+    <footer className="public-footer">
+      <strong>v1.01</strong>
+      <span>Created and maintained by Danish</span>
+    </footer>
   );
 }
 
@@ -249,10 +305,10 @@ function PublicCalendar({ navigate }) {
       <header className="topbar">
         <div>
           <p className="eyebrow">Malaysia time / 30 days back and 60 ahead</p>
-          <h1>Game Calendar</h1>
+          <h1>Chronocodex</h1>
         </div>
         <div className="topbar-actions">
-          <button className="button secondary" type="button" onClick={loadEvents} title="Refresh events">
+          <button className="button secondary compact-action" type="button" onClick={loadEvents} title="Refresh events">
             <RefreshCw size={18} />
             Refresh Calendar
           </button>
@@ -328,7 +384,6 @@ function PublicCalendar({ navigate }) {
         </>
       )}
 
-      <footer className="public-footer">Created and maintained by Danish</footer>
     </main>
   );
 }
@@ -347,7 +402,6 @@ function DateTimeline({ dateKey, isToday, segments, activeSegmentKey, onToggle }
           {segments.map((segment) => {
             const colors = segmentColors(segment);
             const segmentKey = `${segment.id}-${segment.segmentDateKey}`;
-            const status = getEventStatus(segment);
             return (
               <article className="event-row" key={segmentKey}>
                 <button
@@ -364,7 +418,6 @@ function DateTimeline({ dateKey, isToday, segments, activeSegmentKey, onToggle }
                     boxShadow: `0 0 24px ${colors.glow}`,
                   }}
                 >
-                  <span className={`status-dot ${status}`} />
                   <span className="event-label">
                     <span className="event-title">{truncateEventTitle(segment.title)}</span>
                     <small>{segment.game}</small>
@@ -383,6 +436,7 @@ function EventPopover({ event, position, canEdit, onEdit, onClose }) {
   const [copied, setCopied] = useState(false);
   const [isMobile, setIsMobile] = useState(window.matchMedia('(max-width: 860px)').matches);
   const shareUrl = `${window.location.origin}/event/${encodeURIComponent(event.id)}`;
+  const googleCalendarUrl = buildGoogleCalendarUrl(event, shareUrl);
 
   useEffect(() => {
     const media = window.matchMedia('(max-width: 860px)');
@@ -431,26 +485,16 @@ function EventPopover({ event, position, canEdit, onEdit, onClose }) {
             Edit
           </button>
         )}
-        <button className="button secondary" type="button" onClick={copyLink}>
+        <button className="button secondary compact-action" type="button" onClick={copyLink}>
           <Copy size={16} />
           {copied ? 'Copied' : 'Copy link'}
         </button>
+        <a className="button compact-action" href={googleCalendarUrl} target="_blank" rel="noreferrer">
+          <CalendarPlus size={16} />
+          Add to Google Calendar
+        </a>
       </div>
-      <p>{event.description || 'No description yet.'}</p>
-      <dl>
-        <div>
-          <dt><UserRound size={15} /> Game Master</dt>
-          <dd>{event.gameMaster}</dd>
-        </div>
-        <div>
-          <dt><Gamepad2 size={15} /> Game</dt>
-          <dd>{event.game}</dd>
-        </div>
-        <div>
-          <dt><MapPin size={15} /> Location</dt>
-          <dd>{event.location}</dd>
-        </div>
-      </dl>
+      <EventDetails event={event} />
     </aside>
   );
 }
@@ -459,6 +503,8 @@ function EventInfoPage({ eventId, navigate }) {
   const [event, setEvent] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const shareUrl = `${window.location.origin}/event/${encodeURIComponent(eventId)}`;
+  const googleCalendarUrl = event ? buildGoogleCalendarUrl(event, shareUrl) : '';
 
   useEffect(() => {
     let mounted = true;
@@ -511,24 +557,39 @@ function EventInfoPage({ eventId, navigate }) {
               <span>{formatCompactDate(event.startAt)} - {formatCompactDate(event.endAt)}</span>
             </div>
           </div>
-          <p>{event.description || 'No description yet.'}</p>
-          <dl>
-            <div>
-              <dt><UserRound size={15} /> Game Master</dt>
-              <dd>{event.gameMaster}</dd>
-            </div>
-            <div>
-              <dt><Gamepad2 size={15} /> Game</dt>
-              <dd>{event.game}</dd>
-            </div>
-            <div>
-              <dt><MapPin size={15} /> Location</dt>
-              <dd>{event.location}</dd>
-            </div>
-          </dl>
+          <div className="popover-actions">
+            <a className="button compact-action" href={googleCalendarUrl} target="_blank" rel="noreferrer">
+              <CalendarPlus size={16} />
+              Add to Google Calendar
+            </a>
+          </div>
+          <EventDetails event={event} />
         </section>
       )}
     </main>
+  );
+}
+
+function EventDetails({ event }) {
+  return (
+    <div className="event-details">
+      <div className="event-detail-row">
+        <UserRound size={15} />
+        <span>{event.gameMaster}</span>
+      </div>
+      <div className="event-detail-row">
+        <Gamepad2 size={15} />
+        <span>{event.game}</span>
+      </div>
+      <div className="event-detail-row">
+        <MapPin size={15} />
+        <span>{event.location}</span>
+      </div>
+      <div className="event-detail-row description-row">
+        <FileText size={15} />
+        <p>{event.description || 'No description yet.'}</p>
+      </div>
+    </div>
   );
 }
 
