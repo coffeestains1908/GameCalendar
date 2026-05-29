@@ -6,8 +6,14 @@ A Firebase-hosted React + Vite calendar for game events. The public view shows o
 
 1. Copy `.env.example` to `.env`.
 2. Fill in your Firebase web app config.
-3. Set `VITE_ADMIN_EMAILS` to a comma-separated list of admin emails.
-4. Update `firestore.rules` with the same admin emails before deploying rules.
+3. Enable Firebase Auth sign-in providers.
+4. Create the first admin document manually in Firestore:
+
+```text
+admins/your-email@example.com
+```
+
+The document can be empty. The document ID must exactly match the Firebase Auth email.
 
 ## Scripts
 
@@ -23,7 +29,7 @@ Enable these Firebase products:
 
 - Firebase Hosting
 - Cloud Firestore
-- Firebase Authentication with Google and Email/Password providers
+- Firebase Authentication with Email/Password provider
 
 Deploy hosting with:
 

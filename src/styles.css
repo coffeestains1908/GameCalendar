@@ -342,10 +342,6 @@
     @apply mb-[22px];
   }
 
-  .divider {
-    @apply my-[18px] text-center text-[0.8rem] font-extrabold uppercase text-[#7d8798];
-  }
-
   .text-link {
     @apply border-0 bg-transparent p-0 font-extrabold text-[#8cc7ff];
   }
@@ -447,6 +443,18 @@
 
   .admin-list {
     @apply grid gap-0 overflow-hidden bg-[#11151d];
+  }
+
+  .admin-filters {
+    @apply grid gap-2 border-t border-[#26303f] bg-[#151922] p-2.5;
+  }
+
+  .admin-filters label {
+    @apply text-[0.72rem];
+  }
+
+  .admin-filters input {
+    @apply py-2 text-sm;
   }
 
   .admin-event {

@@ -2,15 +2,9 @@ rules_version = '2';
 
 service cloud.firestore {
   match /databases/{database}/documents {
-    function adminEmails() {
-      return [
-        "mdanish1908@gmail.com"
-      ];
-    }
-
     function isAdmin() {
       return request.auth != null
-        && request.auth.token.email in adminEmails();
+        && exists(/databases/$(database)/documents/admins/$(request.auth.token.email));
     }
 
     function requiredEventFields() {
@@ -157,6 +151,12 @@ service cloud.firestore {
         && request.resource.data.createdAt == resource.data.createdAt
         && request.resource.data.updatedAt == request.time;
       allow delete: if isAdmin();
+    }
+
+    match /admins/{adminEmail} {
+      allow read: if request.auth != null
+        && request.auth.token.email == adminEmail;
+      allow create, update, delete: if isAdmin();
     }
 
     match /{document=**} {

@@ -21,13 +21,11 @@ import {
   UserRound,
 } from 'lucide-react';
 import {
-  createUserWithEmailAndPassword,
   onAuthStateChanged,
   signInWithEmailAndPassword,
-  signInWithPopup,
   signOut,
 } from 'firebase/auth';
-import { auth, firebaseReady, googleProvider, isAllowedAdmin } from './firebase.js';
+import { auth, firebaseReady, isAllowedAdmin } from './firebase.js';
 import { toInlineError, toUserError } from './errors.js';
 import {
   createEvent,
@@ -124,6 +122,7 @@ function PublicCalendar({ navigate }) {
   const [error, setError] = useState(null);
   const [activeSegment, setActiveSegment] = useState(null);
   const [user, setUser] = useState(null);
+  const [viewerIsAdmin, setViewerIsAdmin] = useState(false);
   const boardRef = useRef(null);
   const dragRef = useRef({ active: false, startX: 0, scrollLeft: 0 });
 
@@ -146,6 +145,18 @@ function PublicCalendar({ navigate }) {
   useEffect(() => {
     return onAuthStateChanged(auth, setUser);
   }, []);
+
+  useEffect(() => {
+    let mounted = true;
+    async function checkAdmin() {
+      const allowed = await isAllowedAdmin(user);
+      if (mounted) setViewerIsAdmin(allowed);
+    }
+    checkAdmin();
+    return () => {
+      mounted = false;
+    };
+  }, [user]);
 
   const grouped = useMemo(() => groupSegments(events), [events]);
   const monthGroups = useMemo(() => groupMonths(grouped), [grouped]);
@@ -310,7 +321,7 @@ function PublicCalendar({ navigate }) {
           <EventPopover
             event={activeSegment.event}
             position={activeSegment.position}
-            canEdit={isAllowedAdmin(user)}
+            canEdit={viewerIsAdmin}
             onEdit={() => navigate(`/admin?edit=${encodeURIComponent(activeSegment.event.id)}`)}
             onClose={() => setActiveSegment(null)}
           />
@@ -524,6 +535,8 @@ function EventInfoPage({ eventId, navigate }) {
 function AdminView({ navigate }) {
   const [user, setUser] = useState(null);
   const [authLoading, setAuthLoading] = useState(true);
+  const [adminLoading, setAdminLoading] = useState(false);
+  const [allowedAdmin, setAllowedAdmin] = useState(false);
 
   useEffect(() => {
     return onAuthStateChanged(auth, (nextUser) => {
@@ -532,7 +545,28 @@ function AdminView({ navigate }) {
     });
   }, []);
 
-  if (authLoading) {
+  useEffect(() => {
+    let mounted = true;
+    async function checkAdmin() {
+      if (!user) {
+        setAllowedAdmin(false);
+        setAdminLoading(false);
+        return;
+      }
+      setAdminLoading(true);
+      const allowed = await isAllowedAdmin(user);
+      if (mounted) {
+        setAllowedAdmin(allowed);
+        setAdminLoading(false);
+      }
+    }
+    checkAdmin();
+    return () => {
+      mounted = false;
+    };
+  }, [user]);
+
+  if (authLoading || adminLoading) {
     return (
       <main className="app-shell">
         <StatePanel icon={<Loader2 className="spin" />} title="Checking sign-in" />
@@ -542,7 +576,7 @@ function AdminView({ navigate }) {
 
   if (!user) return <SignInView navigate={navigate} />;
 
-  if (!isAllowedAdmin(user)) {
+  if (!allowedAdmin) {
     return (
       <main className="app-shell">
         <header className="topbar">
@@ -568,7 +602,6 @@ function AdminView({ navigate }) {
 }
 
 function SignInView({ navigate }) {
-  const [mode, setMode] = useState('signin');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
@@ -579,25 +612,9 @@ function SignInView({ navigate }) {
     setBusy(true);
     setError('');
     try {
-      if (mode === 'create') {
-        await createUserWithEmailAndPassword(auth, email, password);
-      } else {
-        await signInWithEmailAndPassword(auth, email, password);
-      }
+      await signInWithEmailAndPassword(auth, email, password);
     } catch (err) {
       setError(toInlineError(err, 'Sign-in failed.'));
-    } finally {
-      setBusy(false);
-    }
-  };
-
-  const signInGoogle = async () => {
-    setBusy(true);
-    setError('');
-    try {
-      await signInWithPopup(auth, googleProvider);
-    } catch (err) {
-      setError(toInlineError(err, 'Google sign-in failed.'));
     } finally {
       setBusy(false);
     }
@@ -612,13 +629,8 @@ function SignInView({ navigate }) {
         <div className="auth-heading">
           <Shield size={32} />
           <h1>Admin sign-in</h1>
-          <p>Use a Google account or email/password account from the admin allowlist.</p>
+          <p>Sign in with your admin email and password.</p>
         </div>
-        <button className="button full" type="button" onClick={signInGoogle} disabled={busy}>
-          <Shield size={17} />
-          Continue with Google
-        </button>
-        <div className="divider">or</div>
         <form className="form-grid" onSubmit={submit}>
           <label>
             Email
@@ -637,16 +649,9 @@ function SignInView({ navigate }) {
           {error && <p className="form-error">{error}</p>}
           <button className="button full" type="submit" disabled={busy}>
             {busy ? <Loader2 className="spin" size={17} /> : <CheckCircle2 size={17} />}
-            {mode === 'create' ? 'Create account' : 'Sign in'}
+            Sign in
           </button>
         </form>
-        <button
-          className="text-link"
-          type="button"
-          onClick={() => setMode(mode === 'create' ? 'signin' : 'create')}
-        >
-          {mode === 'create' ? 'Use existing account' : 'Create email/password account'}
-        </button>
       </section>
     </main>
   );
@@ -660,6 +665,7 @@ function AdminDashboard({ user, navigate }) {
   const [form, setForm] = useState(emptyForm);
   const [gameForm, setGameForm] = useState({ name: '', color: '#2f6df6' });
   const [adminTab, setAdminTab] = useState('event');
+  const [filters, setFilters] = useState({ search: '', startDate: '', endDate: '' });
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState(null);
@@ -788,6 +794,11 @@ function AdminDashboard({ user, navigate }) {
     }
   };
 
+  const filteredEvents = useMemo(
+    () => filterAdminEvents(events, filters),
+    [events, filters],
+  );
+
   const submitGame = async (event) => {
     event.preventDefault();
     setBusy(true);
@@ -848,6 +859,34 @@ function AdminDashboard({ user, navigate }) {
             <CalendarDays size={20} />
             <h2>Events</h2>
           </div>
+          <div className="admin-filters">
+            <label>
+              Search
+              <input
+                value={filters.search}
+                onChange={(event) => setFilters((current) => ({ ...current, search: event.target.value }))}
+                placeholder="Title or Game Master"
+              />
+            </label>
+            <div className="two-col">
+              <label>
+                From
+                <input
+                  type="date"
+                  value={filters.startDate}
+                  onChange={(event) => setFilters((current) => ({ ...current, startDate: event.target.value }))}
+                />
+              </label>
+              <label>
+                To
+                <input
+                  type="date"
+                  value={filters.endDate}
+                  onChange={(event) => setFilters((current) => ({ ...current, endDate: event.target.value }))}
+                />
+              </label>
+            </div>
+          </div>
           {loading && <StatePanel icon={<Loader2 className="spin" />} title="Loading events" />}
           {!loading && error && (
             <StatePanel
@@ -859,8 +898,11 @@ function AdminDashboard({ user, navigate }) {
             />
           )}
           {!loading && !error && events.length === 0 && <StatePanel icon={<CalendarDays />} title="No events yet" />}
+          {!loading && !error && events.length > 0 && filteredEvents.length === 0 && (
+            <StatePanel icon={<CalendarDays />} title="No matching events" />
+          )}
           {!loading && !error &&
-            events.map((event) => (
+            filteredEvents.map((event) => (
               <article className="admin-event compact" key={event.id}>
                 <div className="admin-event-main">
                   <div className="admin-event-title">
@@ -1109,6 +1151,21 @@ function segmentColors(segment) {
     border: segment.gameColor,
     glow: `${segment.gameColor}55`,
   };
+}
+
+function filterAdminEvents(events, filters) {
+  const search = filters.search.trim().toLowerCase();
+  const start = filters.startDate ? malaysiaInputToDate(filters.startDate, '00:00') : null;
+  const end = filters.endDate ? malaysiaInputToDate(filters.endDate, '23:59') : null;
+
+  return events.filter((event) => {
+    const matchesSearch = !search
+      || event.title.toLowerCase().includes(search)
+      || event.gameMaster.toLowerCase().includes(search);
+    const matchesStart = !start || event.endAt >= start;
+    const matchesEnd = !end || event.startAt <= end;
+    return matchesSearch && matchesStart && matchesEnd;
+  });
 }
 
 function groupMonths(columns) {

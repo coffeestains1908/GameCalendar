@@ -2,10 +2,9 @@ import { initializeApp } from 'firebase/app';
 import {
   browserLocalPersistence,
   getAuth,
-  GoogleAuthProvider,
   setPersistence,
 } from 'firebase/auth';
-import { getFirestore } from 'firebase/firestore';
+import { doc, getDoc, getFirestore } from 'firebase/firestore';
 
 const firebaseConfig = {
   apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
@@ -18,19 +17,17 @@ const firebaseConfig = {
 
 export const firebaseReady = Object.values(firebaseConfig).every(Boolean);
 
-export const adminEmails = (import.meta.env.VITE_ADMIN_EMAILS || '')
-  .split(',')
-  .map((email) => email.trim().toLowerCase())
-  .filter(Boolean);
-
-export const isAllowedAdmin = (user) =>
-  Boolean(user?.email && adminEmails.includes(user.email.toLowerCase()));
-
 export const app = firebaseReady ? initializeApp(firebaseConfig) : null;
 export const auth = app ? getAuth(app) : null;
 export const db = app ? getFirestore(app) : null;
-export const googleProvider = new GoogleAuthProvider();
 
 if (auth) {
   setPersistence(auth, browserLocalPersistence).catch(() => {});
+}
+
+export async function isAllowedAdmin(user) {
+  if (!db || !user?.email) return false;
+  const adminRef = doc(db, 'admins', user.email.toLowerCase());
+  const snapshot = await getDoc(adminRef);
+  return snapshot.exists();
 }
