@@ -381,7 +381,7 @@ function PublicCalendar({ navigate }) {
 
   useEffect(() => {
     if (quoteTexts.length === 0) return undefined;
-    const interval = window.setInterval(() => setActiveQuote(getRandomQuote()), 60_000);
+    const interval = window.setInterval(() => setActiveQuote(getRandomQuote()), 15_000);
     return () => window.clearInterval(interval);
   }, []);
   const todayKey = formatDateKey(new Date());
@@ -605,20 +605,30 @@ function MatrixTitle({ text }) {
 function QuoteBanner({ quote }) {
   const [displayQuote, setDisplayQuote] = useState(quote);
   const [typing, setTyping] = useState(false);
+  const [selected, setSelected] = useState(false);
+  const initialTypingRef = useRef(true);
 
   useEffect(() => {
     const media = window.matchMedia("(prefers-reduced-motion: reduce)");
     if (media.matches) {
+      initialTypingRef.current = false;
       setDisplayQuote(quote);
       setTyping(false);
+      setSelected(false);
       return undefined;
     }
 
     let index = 0;
     let timeout = 0;
     let fixingMistake = false;
-    setDisplayQuote("");
-    setTyping(true);
+
+    const clearAndStartTyping = () => {
+      initialTypingRef.current = false;
+      setSelected(false);
+      setDisplayQuote("");
+      setTyping(true);
+      timeout = window.setTimeout(typeNext, 2_000);
+    };
 
     const typeNext = () => {
       if (index >= quote.length) {
@@ -634,27 +644,36 @@ function QuoteBanner({ quote }) {
         setDisplayQuote(`${quote.slice(0, index)}${getTypingErrorGlyph(nextCharacter)}`);
         timeout = window.setTimeout(() => {
           setDisplayQuote(quote.slice(0, index));
-          timeout = window.setTimeout(typeNext, 110);
-        }, 230);
+          timeout = window.setTimeout(typeNext, 70);
+        }, 150);
         return;
       }
 
       fixingMistake = false;
       index += 1;
       setDisplayQuote(quote.slice(0, index));
-      timeout = window.setTimeout(typeNext, 45 + Math.random() * 35);
+      timeout = window.setTimeout(typeNext, 22 + Math.random() * 18);
     };
 
-    timeout = window.setTimeout(typeNext, 180);
+    if (initialTypingRef.current) {
+      clearAndStartTyping();
+    } else {
+      setTyping(false);
+      setSelected(true);
+      timeout = window.setTimeout(clearAndStartTyping, 650);
+    }
 
     return () => window.clearTimeout(timeout);
   }, [quote]);
+
+  const quoteHtml = selected ? `<span class="quote-selected">${displayQuote}</span>` : displayQuote;
+  const caretHtml = selected ? "" : `<span class="quote-caret" aria-hidden="true">|</span>`;
 
   return (
     <p
       className={typing ? "quote-banner is-typing" : "quote-banner"}
       aria-label="Random quote"
-      dangerouslySetInnerHTML={{ __html: `&ldquo;${displayQuote}<span class="quote-caret" aria-hidden="true">|</span>&rdquo;` }}
+      dangerouslySetInnerHTML={{ __html: `&ldquo;${quoteHtml}${caretHtml}&rdquo;` }}
     />
   );
 }

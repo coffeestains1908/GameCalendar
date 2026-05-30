@@ -169,6 +169,12 @@
     @apply mx-auto mt-1.5 mb-0 text-center text-[#d8dde7] drop-shadow-[0_2px_14px_rgb(0_0_0_/_0.65)];
   }
 
+  .quote-selected {
+    background: rgb(114 255 174 / 0.28);
+    color: #f4fff8;
+    text-shadow: none;
+  }
+
   .quote-caret {
     display: inline-block;
     margin-left: 0.08em;
