@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   CalendarDays,
   CalendarPlus,
@@ -192,6 +192,8 @@ export function App() {
 
 function StarWarpBackground() {
   const canvasRef = useRef(null);
+  const warpDurationMin = 5000
+  const warpDuratioMax = 10_000
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -208,8 +210,47 @@ function StarWarpBackground() {
     let maxRadius = 0;
     let animationFrame = 0;
     let lastTime = performance.now();
+    let hyperspaceStart = 0;
+    let hyperspaceEnd = 0;
+    let hyperspaceEndTimeout = 0;
+    const hyperspaceFlashDuration = 720;
 
     const randomBetween = (min, max) => min + Math.random() * (max - min);
+    const easeInOut = (value) => value * value * (3 - 2 * value);
+
+    const startHyperspace = () => {
+      const now = performance.now();
+      hyperspaceStart = now;
+      hyperspaceEnd = hyperspaceStart + randomBetween(warpDurationMin, warpDuratioMax);
+      window.dispatchEvent(new CustomEvent("hyperspace-warp-start", { detail: { duration: hyperspaceEnd - hyperspaceStart } }));
+      window.clearTimeout(hyperspaceEndTimeout);
+      hyperspaceEndTimeout = window.setTimeout(() => {
+        window.dispatchEvent(new CustomEvent("hyperspace-warp-end"));
+      }, hyperspaceEnd - hyperspaceStart);
+    };
+
+    const getHyperspaceAmount = (time) => {
+      if (reducedMotion || time < hyperspaceStart || time > hyperspaceEnd) return 0;
+      const duration = hyperspaceEnd - hyperspaceStart;
+      const progress = (time - hyperspaceStart) / duration;
+      const edge = Math.min(progress / 0.18, (1 - progress) / 0.18, 1);
+      return easeInOut(Math.max(0, edge));
+    };
+
+    const getHyperspaceFlashAmount = (time) => {
+      if (reducedMotion) return 0;
+      const preFlashEnd = hyperspaceStart + hyperspaceFlashDuration;
+      const postFlashStart = hyperspaceEnd - hyperspaceFlashDuration;
+      if (time >= hyperspaceStart && time <= preFlashEnd) {
+        const progress = (time - hyperspaceStart) / hyperspaceFlashDuration;
+        return Math.sin((1 - progress) * Math.PI * 0.5) * 0.14;
+      }
+      if (time >= postFlashStart && time <= hyperspaceEnd) {
+        const progress = (time - postFlashStart) / hyperspaceFlashDuration;
+        return Math.sin(progress * Math.PI * 0.5) * 0.1;
+      }
+      return 0;
+    };
 
     const resetStar = (star, fresh = false) => {
       star.angle = randomBetween(0, Math.PI * 2);
@@ -243,9 +284,10 @@ function StarWarpBackground() {
       }
     };
 
-    const drawStar = (star, elapsedSeconds, deltaSeconds) => {
+    const drawStar = (star, elapsedSeconds, deltaSeconds, hyperspaceAmount) => {
       if (!reducedMotion) {
-        star.distance += star.speed * deltaSeconds * (1 + star.distance / maxRadius);
+        const warpSpeed = 1 + hyperspaceAmount * 8;
+        star.distance += star.speed * deltaSeconds * warpSpeed * (1 + star.distance / maxRadius);
       }
 
       const x = center.x + Math.cos(star.angle) * star.distance;
@@ -258,11 +300,11 @@ function StarWarpBackground() {
       const cycle = (elapsedSeconds + star.offset) % star.interval;
       const burst = cycle < 0.34 ? 1 - cycle / 0.34 : 0;
       const depth = Math.min(1, star.distance / maxRadius);
-      const opacity = 0.3 + depth * 0.56;
-      const size = star.size + depth * 1.4;
+      const opacity = Math.min(1, 0.3 + depth * 0.56 + hyperspaceAmount * 0.2);
+      const size = star.size + depth * 1.4 + hyperspaceAmount * 0.4;
 
-      if (burst > 0.02 && !reducedMotion) {
-        const lineLength = 20 + depth * 72 + burst * 68;
+      if ((burst > 0.02 || hyperspaceAmount > 0.02) && !reducedMotion) {
+        const lineLength = 20 + depth * 72 + burst * 68 + hyperspaceAmount * (130 + depth * 260);
         const tailX = x - Math.cos(star.angle) * lineLength;
         const tailY = y - Math.sin(star.angle) * lineLength;
         const gradient = context.createLinearGradient(tailX, tailY, x, y);
@@ -270,7 +312,7 @@ function StarWarpBackground() {
         gradient.addColorStop(0.34, `rgba(${star.tint}, ${0.1 + burst * 0.28})`);
         gradient.addColorStop(1, `rgba(${star.tint}, 0)`);
         context.strokeStyle = gradient;
-        context.lineWidth = 0.7 + burst * 1.25;
+        context.lineWidth = 0.7 + burst * 1.25 + hyperspaceAmount * 1.7;
         context.beginPath();
         context.moveTo(tailX, tailY);
         context.lineTo(x, y);
@@ -288,25 +330,107 @@ function StarWarpBackground() {
       const elapsedSeconds = time / 1000;
       lastTime = time;
 
+      const hyperspaceAmount = getHyperspaceAmount(time);
+      const hyperspaceFlashAmount = getHyperspaceFlashAmount(time);
       context.clearRect(0, 0, width, height);
       context.globalCompositeOperation = 'screen';
-      stars.forEach((star) => drawStar(star, elapsedSeconds, deltaSeconds));
+      stars.forEach((star) => drawStar(star, elapsedSeconds, deltaSeconds, hyperspaceAmount));
       context.globalCompositeOperation = 'source-over';
+      if (hyperspaceFlashAmount > 0) {
+        context.fillStyle = "rgba(181, 220, 255, " + hyperspaceFlashAmount + ")";
+        context.fillRect(0, 0, width, height);
+      }
 
       animationFrame = window.requestAnimationFrame(render);
     };
 
     resize();
     window.addEventListener('resize', resize);
+    const hyperspaceInterval = reducedMotion ? 0 : window.setInterval(startHyperspace, 50_000);
     animationFrame = window.requestAnimationFrame(render);
 
     return () => {
       window.cancelAnimationFrame(animationFrame);
+      if (hyperspaceInterval) window.clearInterval(hyperspaceInterval);
+      window.clearTimeout(hyperspaceEndTimeout);
       window.removeEventListener('resize', resize);
     };
   }, []);
 
   return <canvas className="star-warp-canvas" ref={canvasRef} aria-hidden="true" />;
+}
+
+function WarpChargeIndicator() {
+  const [chargePercent, setChargePercent] = useState(0);
+  const [warping, setWarping] = useState(false);
+
+  useEffect(() => {
+    const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    let chargeStartedAt = performance.now();
+    const warpingRef = { current: false };
+    let animationFrame = 0;
+    let chargeInterval = 0;
+
+    const updateCharge = () => {
+      if (warpingRef.current) {
+        setChargePercent(100);
+        if (!reducedMotion) animationFrame = window.requestAnimationFrame(updateCharge);
+        return;
+      }
+      const elapsed = performance.now() - chargeStartedAt;
+      setChargePercent(Math.min(100, (elapsed / 50_000) * 100));
+      if (!reducedMotion) animationFrame = window.requestAnimationFrame(updateCharge);
+    };
+
+    const updateReducedCharge = () => {
+      const elapsed = performance.now() - chargeStartedAt;
+      setChargePercent(Math.min(100, (elapsed / 50_000) * 100));
+    };
+
+    const onWarpStart = () => {
+      warpingRef.current = true;
+      setWarping(true);
+      setChargePercent(100);
+    };
+
+    const onWarpEnd = () => {
+      chargeStartedAt = performance.now();
+      warpingRef.current = false;
+      setWarping(false);
+      setChargePercent(0);
+    };
+
+    window.addEventListener("hyperspace-warp-start", onWarpStart);
+    window.addEventListener("hyperspace-warp-end", onWarpEnd);
+
+    if (reducedMotion) {
+      updateReducedCharge();
+      chargeInterval = window.setInterval(updateReducedCharge, 1000);
+    } else {
+      animationFrame = window.requestAnimationFrame(updateCharge);
+    }
+
+    return () => {
+      window.removeEventListener("hyperspace-warp-start", onWarpStart);
+      window.removeEventListener("hyperspace-warp-end", onWarpEnd);
+      window.cancelAnimationFrame(animationFrame);
+      window.clearInterval(chargeInterval);
+    };
+  }, []);
+
+  const chargeCount = 10
+  const chargedSegments = warping ? chargeCount : Math.min(chargeCount, Math.floor(chargePercent / (100 / chargeCount)));
+
+  return (
+    <aside className={warping ? "warp-charge is-warping" : "warp-charge"} aria-label="Faster Than Light warp charge">
+      <span className="warp-charge-label">FTL Warp</span>
+      <div className="warp-charge-segments" aria-hidden="true">
+        {Array.from({ length: chargeCount }, (_, index) => (
+          <span className={index < chargedSegments ? "warp-charge-segment is-filled" : "warp-charge-segment"} key={index} />
+        ))}
+      </div>
+    </aside>
+  );
 }
 
 function CreditFooter() {
@@ -378,11 +502,15 @@ function PublicCalendar({ navigate }) {
   const grouped = useMemo(() => groupSegments(events), [events]);
   const monthGroups = useMemo(() => groupMonths(grouped), [grouped]);
   const [activeQuote, setActiveQuote] = useState(getRandomQuote);
+  const quoteRotationTimerRef = useRef(0);
+  const scheduleNextQuote = useCallback(() => {
+    window.clearTimeout(quoteRotationTimerRef.current);
+    if (quoteTexts.length === 0) return;
+    quoteRotationTimerRef.current = window.setTimeout(() => setActiveQuote(getRandomQuote()), 15_000);
+  }, []);
 
   useEffect(() => {
-    if (quoteTexts.length === 0) return undefined;
-    const interval = window.setInterval(() => setActiveQuote(getRandomQuote()), 15_000);
-    return () => window.clearInterval(interval);
+    return () => window.clearTimeout(quoteRotationTimerRef.current);
   }, []);
   const todayKey = formatDateKey(new Date());
 
@@ -472,9 +600,10 @@ function PublicCalendar({ navigate }) {
     <main className="public-shell">
       <header className="topbar">
         <div className="topbar-title">
+          <WarpChargeIndicator />
           <MatrixTitle text={titleText} />
           <p className="eyebrow">Malaysia time / 30 days back and 60 ahead</p>
-          {activeQuote && <QuoteBanner quote={activeQuote} />}
+          {activeQuote && <QuoteBanner quote={activeQuote} onTypingComplete={scheduleNextQuote} />}
         </div>
         <div className="topbar-actions">
           <button className="button secondary compact-action" type="button" onClick={loadEvents} title="Refresh events">
@@ -602,7 +731,7 @@ function MatrixTitle({ text }) {
   );
 }
 
-function QuoteBanner({ quote }) {
+function QuoteBanner({ quote, onTypingComplete }) {
   const [displayQuote, setDisplayQuote] = useState(quote);
   const [typing, setTyping] = useState(false);
   const [selected, setSelected] = useState(false);
@@ -615,6 +744,7 @@ function QuoteBanner({ quote }) {
       setDisplayQuote(quote);
       setTyping(false);
       setSelected(false);
+      onTypingComplete();
       return undefined;
     }
 
@@ -633,6 +763,7 @@ function QuoteBanner({ quote }) {
     const typeNext = () => {
       if (index >= quote.length) {
         setTyping(false);
+        onTypingComplete();
         return;
       }
 
@@ -664,7 +795,7 @@ function QuoteBanner({ quote }) {
     }
 
     return () => window.clearTimeout(timeout);
-  }, [quote]);
+  }, [onTypingComplete, quote]);
 
   const quoteHtml = selected ? `<span class="quote-selected">${displayQuote}</span>` : displayQuote;
   const caretHtml = selected ? "" : `<span class="quote-caret" aria-hidden="true">|</span>`;
