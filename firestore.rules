@@ -1,49 +1,51 @@
-rules_version = '2';
+rules_version = "2";
 
 service cloud.firestore {
   match /databases/{database}/documents {
+    function adminEmail() {
+      return request.auth.token.email.lower();
+    }
+
     function isAdmin() {
       return request.auth != null
-        && exists(/databases/$(database)/documents/admins/$(request.auth.token.email));
+        && request.auth.token.email != null
+        && exists(/databases/$(database)/documents/admins/$(adminEmail()));
+    }
+
+    function isActiveGameMaster() {
+      return request.auth != null
+        && exists(/databases/$(database)/documents/gameMasters/$(request.auth.uid))
+        && get(/databases/$(database)/documents/gameMasters/$(request.auth.uid)).data.active == true;
+    }
+
+    function ownsEvent() {
+      return request.auth != null && resource.data.createdBy == request.auth.uid;
+    }
+
+    function ownsParentEvent(eventId) {
+      return request.auth != null
+        && exists(/databases/$(database)/documents/events/$(eventId))
+        && get(/databases/$(database)/documents/events/$(eventId)).data.createdBy == request.auth.uid;
+    }
+
+    function createsOwnEvent() {
+      return isActiveGameMaster()
+        && request.resource.data.createdBy == request.auth.uid
+        && request.resource.data.gameMasterUid == request.auth.uid;
     }
 
     function requiredEventFields() {
       return [
-        "title",
-        "gameMaster",
-        "game",
-        "location",
-        "description",
-        "startAt",
-        "endAt",
-        "published",
-        "createdAt",
-        "updatedAt"
+        "title", "gameMaster", "game", "location", "description", "startAt", "endAt",
+        "published", "createdAt", "updatedAt", "createdBy", "gameMasterUid", "inviteEnabled"
       ];
     }
 
     function allowedEventFields() {
       return [
-        "title",
-        "gameMaster",
-        "game",
-        "gameColor",
-        "location",
-        "description",
-        "startAt",
-        "endAt",
-        "published",
-        "createdAt",
-        "updatedAt"
+        "title", "gameMaster", "game", "gameColor", "location", "description", "startAt", "endAt",
+        "published", "createdAt", "updatedAt", "createdBy", "gameMasterUid", "inviteEnabled"
       ];
-    }
-
-    function hasOnlyEventFields() {
-      return request.resource.data.keys().hasOnly(allowedEventFields());
-    }
-
-    function hasAllEventFields() {
-      return request.resource.data.keys().hasAll(requiredEventFields());
     }
 
     function isNonEmptyString(field, maxLength) {
@@ -53,24 +55,25 @@ service cloud.firestore {
     }
 
     function isValidEventData() {
-      return hasOnlyEventFields()
-        && hasAllEventFields()
+      return request.resource.data.keys().hasOnly(allowedEventFields())
+        && request.resource.data.keys().hasAll(requiredEventFields())
         && isNonEmptyString("title", 140)
         && isNonEmptyString("gameMaster", 120)
         && isNonEmptyString("game", 120)
-        && (
-          !request.resource.data.keys().hasAny(["gameColor"])
-          || (
-            request.resource.data.gameColor is string
-            && request.resource.data.gameColor.matches("^#[0-9A-Fa-f]{6}$")
-          )
-        )
         && isNonEmptyString("location", 180)
         && isNonEmptyString("description", 3000)
+        && request.resource.data.createdBy is string
+        && request.resource.data.createdBy.size() > 0
+        && request.resource.data.gameMasterUid is string
+        && request.resource.data.inviteEnabled is bool
         && request.resource.data.startAt is timestamp
         && request.resource.data.endAt is timestamp
         && request.resource.data.endAt > request.resource.data.startAt
-        && request.resource.data.published is bool;
+        && request.resource.data.published is bool
+        && (
+          !request.resource.data.keys().hasAny(["gameColor"])
+          || (request.resource.data.gameColor is string && request.resource.data.gameColor.matches("^#[0-9A-Fa-f]{6}$"))
+        );
     }
 
     function isValidNewEvent() {
@@ -82,23 +85,38 @@ service cloud.firestore {
     function isValidEventUpdate() {
       return isValidEventData()
         && request.resource.data.createdAt == resource.data.createdAt
+        && (isAdmin() || request.resource.data.createdBy == resource.data.createdBy)
+        && request.resource.data.updatedAt == request.time;
+    }
+
+    function isAdminPublishUpdate() {
+      return isAdmin()
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(["published", "updatedAt"])
+        && request.resource.data.published is bool
         && request.resource.data.updatedAt == request.time;
     }
 
     match /events/{eventId} {
-      allow read: if resource.data.published == true || isAdmin();
-      allow create: if isAdmin() && isValidNewEvent();
-      allow update: if isAdmin() && isValidEventUpdate();
-      allow delete: if isAdmin();
+      allow read: if resource.data.published == true || isAdmin() || ownsEvent();
+      allow create: if isValidNewEvent() && (isAdmin() || createsOwnEvent());
+      allow update: if isAdminPublishUpdate() || (isValidEventUpdate() && (isAdmin() || (ownsEvent() && request.resource.data.gameMasterUid == request.auth.uid)));
+      allow delete: if isAdmin() || ownsEvent();
+
+      match /players/{playerId} {
+        allow read, update, delete: if isAdmin() || ownsParentEvent(eventId);
+        allow create: if false;
+      }
+    }
+
+    match /eventSecrets/{eventId} {
+      allow read, create, update, delete: if isAdmin()
+        || (isActiveGameMaster()
+          && exists(/databases/$(database)/documents/events/$(eventId))
+          && get(/databases/$(database)/documents/events/$(eventId)).data.createdBy == request.auth.uid);
     }
 
     function requiredGameFields() {
-      return [
-        "name",
-        "color",
-        "createdAt",
-        "updatedAt"
-      ];
+      return ["name", "color", "createdAt", "updatedAt"];
     }
 
     function isValidGameData() {
@@ -113,49 +131,39 @@ service cloud.firestore {
 
     match /games/{gameId} {
       allow read: if true;
-      allow create: if isAdmin()
-        && isValidGameData()
-        && request.resource.data.createdAt == request.time
-        && request.resource.data.updatedAt == request.time;
-      allow update: if isAdmin()
-        && isValidGameData()
-        && request.resource.data.createdAt == resource.data.createdAt
-        && request.resource.data.updatedAt == request.time;
+      allow create: if isAdmin() && isValidGameData() && request.resource.data.createdAt == request.time && request.resource.data.updatedAt == request.time;
+      allow update: if isAdmin() && isValidGameData() && request.resource.data.createdAt == resource.data.createdAt && request.resource.data.updatedAt == request.time;
       allow delete: if isAdmin();
     }
 
     function requiredGameMasterFields() {
-      return [
-        "name",
-        "createdAt",
-        "updatedAt"
-      ];
+      return ["uid", "name", "email", "active", "createdAt", "updatedAt", "createdBy"];
     }
 
     function isValidGameMasterData() {
       return request.resource.data.keys().hasOnly(requiredGameMasterFields())
         && request.resource.data.keys().hasAll(requiredGameMasterFields())
+        && request.resource.data.uid is string
         && request.resource.data.name is string
         && request.resource.data.name.size() > 0
-        && request.resource.data.name.size() <= 120;
+        && request.resource.data.name.size() <= 120
+        && request.resource.data.email is string
+        && request.resource.data.email.size() > 3
+        && request.resource.data.email.size() <= 180
+        && request.resource.data.active is bool
+        && request.resource.data.createdBy is string;
     }
 
     match /gameMasters/{gameMasterId} {
-      allow read: if true;
-      allow create: if isAdmin()
-        && isValidGameMasterData()
-        && request.resource.data.createdAt == request.time
-        && request.resource.data.updatedAt == request.time;
-      allow update: if isAdmin()
-        && isValidGameMasterData()
-        && request.resource.data.createdAt == resource.data.createdAt
-        && request.resource.data.updatedAt == request.time;
+      allow get: if isAdmin() || (request.auth != null && request.auth.uid == gameMasterId);
+      allow list: if isAdmin();
+      allow create: if isAdmin() && isValidGameMasterData() && request.resource.data.uid == gameMasterId && request.resource.data.createdAt == request.time && request.resource.data.updatedAt == request.time;
+      allow update: if isAdmin() && isValidGameMasterData() && request.resource.data.uid == gameMasterId && request.resource.data.createdAt == resource.data.createdAt && request.resource.data.updatedAt == request.time;
       allow delete: if isAdmin();
     }
 
     match /admins/{adminEmail} {
-      allow read: if request.auth != null
-        && request.auth.token.email == adminEmail;
+      allow read: if request.auth != null && request.auth.token.email.lower() == adminEmail;
       allow create, update, delete: if isAdmin();
     }
 
