@@ -76,10 +76,16 @@ export async function fetchPublicEvents(now = new Date()) {
     ),
   );
 
-  return snapshot.docs
+  const events = snapshot.docs
     .map(normalizeDoc)
     .filter((event) => event.startAt <= sixtyDays)
     .sort((a, b) => a.startAt - b.startAt);
+
+  return Promise.all(events.map(async (event) => {
+    if (event.inviteEnabled !== true) return { ...event, playerCount: 0 };
+    const players = await fetchEventPlayers(event.id);
+    return { ...event, playerCount: players.length };
+  }));
 }
 
 export async function fetchAdminEvents(now = new Date()) {

@@ -103,7 +103,11 @@ service cloud.firestore {
       allow delete: if isAdmin() || ownsEvent();
 
       match /players/{playerId} {
-        allow read, update, delete: if isAdmin() || ownsParentEvent(eventId);
+        allow read: if isAdmin() || ownsParentEvent(eventId)
+          || (exists(/databases/$(database)/documents/events/$(eventId))
+            && get(/databases/$(database)/documents/events/$(eventId)).data.published == true
+            && get(/databases/$(database)/documents/events/$(eventId)).data.inviteEnabled == true);
+        allow update, delete: if isAdmin() || ownsParentEvent(eventId);
         allow create: if false;
       }
     }

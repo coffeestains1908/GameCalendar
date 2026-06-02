@@ -461,7 +461,7 @@ function DateTimeline({ dateKey, isToday, segments, activeSegmentKey, onToggle }
                 >
                   <span className="event-label">
                     <span className="event-title">{truncateEventTitle(segment.title)}</span>
-                    <small>{segment.game}</small>
+                    <small>{segment.game}{segment.inviteEnabled === true ? " / " + formatPlayerCount(segment.playerCount || 0) : ""}</small>
                   </span>
                 </button>
               </article>
@@ -512,6 +512,15 @@ function EventPopover({ event, position, canEdit, onEdit, onClose }) {
           <X size={17} />
         </button>
       </div>
+      {event.inviteEnabled === true && (
+        <div className="popover-time">
+          <UserRound size={18} />
+          <div>
+            <strong>{formatPlayerCount(event.playerCount || 0)}</strong>
+            <span>Joined players</span>
+          </div>
+        </div>
+      )}
       <div className="popover-time">
         <Clock3 size={18} />
         <div>
@@ -567,6 +576,10 @@ function groupSegments(events) {
   }
 
   return columns;
+}
+
+function formatPlayerCount(count) {
+  return count + " " + (count === 1 ? "player" : "players") + " joining";
 }
 
 function truncateEventTitle(title) {

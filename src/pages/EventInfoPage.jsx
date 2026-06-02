@@ -111,15 +111,16 @@ export function EventInfoPage({ eventId, navigate }) {
     return () => { mounted = false; };
   }, [user]);
 
-  const canManagePlayers = Boolean(event?.inviteEnabled === true && user && (viewerIsAdmin || event.createdBy === user.uid));
+  const canViewPlayers = event?.inviteEnabled === true;
+  const canManagePlayers = Boolean(canViewPlayers && user && (viewerIsAdmin || event.createdBy === user.uid));
 
   const loadEventPlayers = useCallback(async () => {
-    if (!canManagePlayers || !event) {
+    if (!canViewPlayers || !event) {
       setPlayerList([]);
       return;
     }
     setPlayerList(await fetchEventPlayers(event.id));
-  }, [canManagePlayers, event]);
+  }, [canViewPlayers, event]);
 
   useEffect(() => {
     loadEventPlayers();
@@ -155,7 +156,10 @@ export function EventInfoPage({ eventId, navigate }) {
             </a>
           </div>
           <EventDetails event={event} />
-          {event.inviteEnabled === true && <JoinEventForm eventId={event.id} />}
+          {event.inviteEnabled === true && <JoinEventForm eventId={event.id} onJoined={loadEventPlayers} />}
+          {canViewPlayers && !canManagePlayers && (
+            <PublicJoinedPlayers players={playerList} />
+          )}
           {canManagePlayers && (
             <JoinedPlayersManager
               eventId={event.id}
@@ -166,6 +170,26 @@ export function EventInfoPage({ eventId, navigate }) {
         </section>
       )}
     </main>
+  );
+}
+
+function PublicJoinedPlayers({ players }) {
+  return (
+    <section className="join-form">
+      <div className="section-heading">
+        <UserRound size={20} />
+        <h2>Joined players</h2>
+      </div>
+      <div className="game-list">
+        {players.length === 0 && <p>No players have joined yet.</p>}
+        {players.map((player) => (
+          <article className="game-entry" key={player.id}>
+            <span className="status-dot" />
+            <span>{player.name}</span>
+          </article>
+        ))}
+      </div>
+    </section>
   );
 }
 
@@ -221,7 +245,7 @@ function JoinedPlayersManager({ eventId, players, onReload }) {
 
 const joinEventRecaptchaAction = "join_event";
 
-function JoinEventForm({ eventId }) {
+function JoinEventForm({ eventId, onJoined }) {
   const [name, setName] = useState('');
   const [pin, setPin] = useState('');
   const [busy, setBusy] = useState(false);
@@ -249,6 +273,7 @@ function JoinEventForm({ eventId }) {
       setName('');
       setPin('');
       setMessage('You are on the player list.');
+      await onJoined?.();
     } catch (err) {
       setError(toInlineError(err, 'Could not join event.'));
     } finally {
