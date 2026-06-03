@@ -1,6 +1,8 @@
 import { useEffect, useRef, useState } from 'react';
 import { Gamepad2 } from 'lucide-react';
 
+import githubIcon from '../assets/icons/GitHub_Invertocat_White.svg';
+
 export function StarWarpBackground() {
   const canvasRef = useRef(null);
   const warpDurationMin = 5000
@@ -246,10 +248,17 @@ export function WarpChargeIndicator() {
 
 export function CreditFooter() {
   return (
-    <footer className="public-footer">
-      <strong>v1.02</strong>
-      <span>Created and maintained by Danish</span>
-    </footer>
+    <div className="public-footer-stack">
+      <footer className="public-footer">
+        <strong>v1.02</strong>
+        <span>Created and maintained by Danish</span>
+      </footer>
+
+      <a className="footer-source-link" href="https://github.com/coffeestains1908/GameCalendar" target="_blank" rel="noreferrer">
+        <img src={githubIcon} alt="" />
+        <span>This project is open sourced ❤️</span>
+      </a>
+    </div>
   );
 }
 

@@ -228,8 +228,29 @@
     background: rgb(114 255 174 / 0.46);
   }
 
+  .public-footer-stack {
+    @apply fixed bottom-3 left-1/2 z-40 flex -translate-x-1/2 select-none flex-col items-center gap-1.5;
+  }
+
   .public-footer {
-    @apply fixed bottom-3 left-1/2 z-40 flex -translate-x-1/2 select-none items-center gap-2 rounded-full border border-[#27303d] bg-[#101216]/85 px-3 py-1.5 text-xs text-[#78859a] backdrop-blur;
+    @apply flex items-center gap-2 rounded-full border border-[#27303d] bg-[#101216]/85 px-3 py-1.5 text-xs text-[#78859a] backdrop-blur;
+  }
+
+  .footer-source-link {
+    @apply flex max-w-[calc(100vw-24px)] items-center justify-center gap-1.5 rounded-full border border-[#27303d]/75 bg-[#101216]/75 px-2.5 py-1 text-[0.68rem] font-bold text-[#8d98aa] no-underline backdrop-blur transition;
+  }
+
+  .footer-source-link:hover,
+  .footer-source-link:focus-visible {
+    @apply border-[#3b4658] text-[#d8dde7];
+  }
+
+  .footer-source-link img {
+    @apply h-3.5 w-3.5 shrink-0;
+  }
+
+  .footer-source-link span {
+    @apply min-w-0 truncate;
   }
 
   .public-footer strong {
@@ -373,8 +394,14 @@
     @apply relative h-10 shrink-0 border-r border-b border-[#26303f] bg-[#191d25];
   }
 
+  .calendar-timeline {
+    @apply relative min-w-full;
+    width: calc(var(--day-width) * var(--column-count));
+  }
+
   .calendar-columns {
     @apply grid min-w-full auto-cols-[var(--day-width)] grid-flow-col;
+    width: calc(var(--day-width) * var(--column-count));
   }
 
   .date-column {
@@ -411,15 +438,15 @@
   }
 
   .date-column-body {
-    @apply px-3 pt-3 pb-24;
+    min-height: calc((var(--lane-count) * 60px) + 1.5rem);
+    @apply px-0 py-0;
   }
 
-  .event-stack {
-    @apply grid gap-[14px];
-  }
-
-  .event-row {
-    @apply relative min-h-[46px] overflow-visible;
+  .event-layer {
+    @apply pointer-events-none absolute left-0 z-10;
+    top: 3rem;
+    width: calc(var(--day-width) * var(--column-count));
+    height: calc((var(--lane-count) * 60px) + 1.5rem);
   }
 
   .event-title {
@@ -451,7 +478,8 @@
   }
 
   .event-bar-button {
-    @apply absolute top-1 bottom-1 z-10 flex min-w-6 cursor-pointer items-center overflow-visible border px-2 text-left text-[0.82rem] font-black text-white;
+    @apply pointer-events-auto absolute z-10 flex h-[42px] min-w-6 cursor-pointer items-center overflow-hidden border px-2 text-left text-[0.82rem] font-black text-white;
+    top: calc(0.75rem + (var(--event-lane) * 60px));
     touch-action: manipulation;
   }
 

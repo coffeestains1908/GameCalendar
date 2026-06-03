@@ -24,6 +24,8 @@ import quotes from '../data/quotes.json';
 import { fetchPublicEvents } from '../events.js';
 import {
   addDaysToDateKey,
+  dateKeyToMalaysiaDate,
+  dateToMinutes,
   formatCompactDate,
   formatDateKey,
   formatDayLabel,
@@ -32,7 +34,6 @@ import {
   formatWeekdayLabel,
   gameColor,
   MALAYSIA_TIME_ZONE,
-  splitEventIntoDateSegments,
 } from '../time.js';
 import { StatePanel, WarpChargeIndicator } from '../components/AppChrome.jsx';
 import { buildGoogleCalendarUrl, EventDetails } from './EventInfoPage.jsx';
@@ -48,6 +49,8 @@ function getRandomQuote() {
 
 const titleText = 'ChRonoC0deX';
 const matrixGlyphs = 'アイウエオカキクケコサシスセソタチツテト0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+const MINUTES_PER_DAY = 24 * 60;
+const MS_PER_DAY = 24 * 60 * 60 * 1000;
 
 function getTypingErrorGlyph(expectedCharacter) {
   let glyph = matrixGlyphs[Math.floor(Math.random() * matrixGlyphs.length)];
@@ -115,8 +118,8 @@ export function PublicCalendar({ navigate }) {
     };
   }, [user]);
 
-  const grouped = useMemo(() => groupSegments(events), [events]);
-  const monthGroups = useMemo(() => groupMonths(grouped), [grouped]);
+  const calendarLayout = useMemo(() => buildCalendarLayout(events), [events]);
+  const monthGroups = useMemo(() => groupMonths(calendarLayout.columns), [calendarLayout.columns]);
   const [activeQuote, setActiveQuote] = useState(getRandomQuote);
   const quoteRotationTimerRef = useRef(0);
   const scheduleNextQuote = useCallback(() => {
@@ -131,12 +134,12 @@ export function PublicCalendar({ navigate }) {
   const todayKey = formatDateKey(new Date());
 
   useEffect(() => {
-    if (loading || error || grouped.length === 0) return;
+    if (loading || error || calendarLayout.columns.length === 0) return;
     const board = boardRef.current;
     const todayColumn = board?.querySelector(`[data-date-key="${todayKey}"]`);
     if (!board || !todayColumn) return;
     board.scrollLeft = todayColumn.offsetLeft;
-  }, [error, grouped.length, loading, todayKey]);
+  }, [calendarLayout.columns.length, error, loading, todayKey]);
 
   useEffect(() => {
     if (!activeSegment) return undefined;
@@ -161,8 +164,7 @@ export function PublicCalendar({ navigate }) {
     };
   }, [activeSegment]);
 
-  const togglePopover = (segment, trigger) => {
-    const segmentKey = `${segment.id}-${segment.segmentDateKey}`;
+  const togglePopover = (eventEntry, trigger) => {
     const triggerRect = trigger.getBoundingClientRect();
     const width = Math.min(380, window.innerWidth - 24);
     const left = Math.min(
@@ -172,10 +174,10 @@ export function PublicCalendar({ navigate }) {
     const top = triggerRect.bottom + 12;
 
     setActiveSegment((current) => {
-      if (current?.key === segmentKey) return null;
+      if (current?.key === eventEntry.id) return null;
       return {
-        key: segmentKey,
-        event: segment,
+        key: eventEntry.id,
+        event: eventEntry,
         position: { left, top, width },
       };
     });
@@ -243,7 +245,7 @@ export function PublicCalendar({ navigate }) {
           actionLabel="Open Firebase index"
         />
       )}
-      {!loading && !error && grouped.length === 0 && (
+      {!loading && !error && events.length === 0 && (
         <StatePanel
           icon={<CalendarDays />}
           title="No upcoming events"
@@ -251,7 +253,7 @@ export function PublicCalendar({ navigate }) {
         />
       )}
 
-      {!loading && !error && grouped.length > 0 && (
+      {!loading && !error && events.length > 0 && (
         <section
           ref={boardRef}
           className="calendar-board"
@@ -274,17 +276,32 @@ export function PublicCalendar({ navigate }) {
               </div>
             ))}
           </div>
-          <div className="calendar-columns">
-            {grouped.map(({ dateKey, segments }) => (
-              <DateTimeline
-                key={dateKey}
-                dateKey={dateKey}
-                isToday={dateKey === todayKey}
-                segments={segments}
-                activeSegmentKey={activeSegment?.key}
-                onToggle={togglePopover}
-              />
-            ))}
+          <div
+            className="calendar-timeline"
+            style={{
+              '--column-count': calendarLayout.columns.length,
+              '--lane-count': calendarLayout.laneCount,
+            }}
+          >
+            <div className="calendar-columns">
+              {calendarLayout.columns.map(({ dateKey }) => (
+                <DateTimeline
+                  key={dateKey}
+                  dateKey={dateKey}
+                  isToday={dateKey === todayKey}
+                />
+              ))}
+            </div>
+            <div className="event-layer" aria-label="Scheduled events">
+              {calendarLayout.eventBars.map((eventBar) => (
+                <EventBar
+                  active={activeSegment?.key === eventBar.event.id}
+                  eventBar={eventBar}
+                  key={eventBar.event.id}
+                  onToggle={togglePopover}
+                />
+              ))}
+            </div>
           </div>
         </section>
       )}
@@ -429,47 +446,45 @@ function QuoteBanner({ quote, onTypingComplete }) {
   );
 }
 
-function DateTimeline({ dateKey, isToday, segments, activeSegmentKey, onToggle }) {
+function DateTimeline({ dateKey, isToday }) {
   return (
     <section className="date-column" data-date-key={dateKey}>
       <div className="date-header">
-        <div className={isToday ? 'day-header today' : 'day-header'}>
+        <div className={isToday ? "day-header today" : "day-header"}>
           <span>{formatDayLabel(dateKey)}</span>
           <small>{formatWeekdayLabel(dateKey)}</small>
         </div>
       </div>
-      <div className="date-column-body">
-        <div className="event-stack">
-          {segments.map((segment) => {
-            const colors = segmentColors(segment);
-            const segmentKey = `${segment.id}-${segment.segmentDateKey}`;
-            return (
-              <article className="event-row" key={segmentKey}>
-                <button
-                  type="button"
-                  className="event-bar-button"
-                  onClick={(event) => onToggle(segment, event.currentTarget)}
-                  aria-expanded={activeSegmentKey === segmentKey}
-                  title={`${segment.title} / ${formatTime(segment.segmentStart)}-${formatTime(segment.segmentEnd)}`}
-                  style={{
-                    left: `${segment.leftPercent}%`,
-                    width: `${segment.widthPercent}%`,
-                    background: colors.background,
-                    borderColor: colors.border,
-                    boxShadow: `0 0 24px ${colors.glow}`,
-                  }}
-                >
-                  <span className="event-label">
-                    <span className="event-title">{truncateEventTitle(segment.title)}</span>
-                    <small>{segment.game}{segment.inviteEnabled === true ? " / " + formatPlayerCount(segment.playerCount || 0) : ""}</small>
-                  </span>
-                </button>
-              </article>
-            );
-          })}
-        </div>
-      </div>
+      <div className="date-column-body" />
     </section>
+  );
+}
+
+function EventBar({ active, eventBar, onToggle }) {
+  const { event, lane, leftDays, widthDays } = eventBar;
+  const colors = segmentColors(event);
+
+  return (
+    <button
+      type="button"
+      className="event-bar-button"
+      onClick={(clickEvent) => onToggle(event, clickEvent.currentTarget)}
+      aria-expanded={active}
+      title={event.title + " / " + formatTime(event.startAt) + "-" + formatTime(event.endAt)}
+      style={{
+        "--event-lane": lane,
+        left: "calc(var(--day-width) * " + leftDays + ")",
+        width: "max(1.5rem, calc(var(--day-width) * " + widthDays + "))",
+        background: colors.background,
+        borderColor: colors.border,
+        boxShadow: "0 0 24px " + colors.glow,
+      }}
+    >
+      <span className="event-label">
+        <span className="event-title">{truncateEventTitle(event.title)}</span>
+        <small>{event.game}{event.inviteEnabled === true ? " / " + formatPlayerCount(event.playerCount || 0) : ""}</small>
+      </span>
+    </button>
   );
 }
 
@@ -549,33 +564,69 @@ function EventPopover({ event, position, canEdit, onEdit, onClose }) {
   );
 }
 
-function groupSegments(events) {
-  const segments = events.flatMap(splitEventIntoDateSegments);
-  const groups = new Map();
-  segments.forEach((segment) => {
-    if (!groups.has(segment.segmentDateKey)) groups.set(segment.segmentDateKey, []);
-    groups.get(segment.segmentDateKey).push(segment);
-  });
-
-  const sortedKeys = [...groups.keys()].sort((a, b) => a.localeCompare(b));
+function buildCalendarLayout(events) {
   const todayKey = formatDateKey(new Date());
   const startKey = addDaysToDateKey(todayKey, -30);
   const defaultEndKey = addDaysToDateKey(todayKey, 60);
-  const lastEventKey = sortedKeys.length > 0 ? addDaysToDateKey(sortedKeys[sortedKeys.length - 1], 1) : defaultEndKey;
+  const eventEndKeys = events
+    .filter((event) => event.startAt && event.endAt && event.endAt > event.startAt)
+    .map((event) => formatDateKey(new Date(event.endAt.getTime() - 1)))
+    .sort((a, b) => a.localeCompare(b));
+  const lastEventKey = eventEndKeys.length > 0 ? eventEndKeys[eventEndKeys.length - 1] : defaultEndKey;
   const endKey = lastEventKey > defaultEndKey ? lastEventKey : defaultEndKey;
   const columns = [];
   let cursorKey = startKey;
 
   while (cursorKey <= endKey) {
-    const dateSegments = groups.get(cursorKey) || [];
     columns.push({
       dateKey: cursorKey,
-      segments: dateSegments.sort((a, b) => a.segmentStart - b.segmentStart),
     });
     cursorKey = addDaysToDateKey(cursorKey, 1);
   }
 
-  return columns;
+  const eventBars = layoutEventBars(events, startKey, columns.length);
+  const laneCount = Math.max(1, eventBars.reduce((count, eventBar) => Math.max(count, eventBar.lane + 1), 0));
+
+  return { columns, eventBars, laneCount };
+}
+
+function layoutEventBars(events, startKey, columnCount) {
+  const visibleStart = dateKeyToMalaysiaDate(startKey);
+  const visibleEnd = dateKeyToMalaysiaDate(addDaysToDateKey(startKey, columnCount));
+  const positionedEvents = events
+    .filter((event) => event.startAt && event.endAt && event.endAt > event.startAt)
+    .filter((event) => event.endAt > visibleStart && event.startAt < visibleEnd)
+    .map((event) => {
+      const rawStart = dayOffset(startKey, formatDateKey(event.startAt)) + dateToMinutes(event.startAt) / MINUTES_PER_DAY;
+      const rawEnd = dayOffset(startKey, formatDateKey(event.endAt)) + dateToMinutes(event.endAt) / MINUTES_PER_DAY;
+      const leftDays = Math.max(0, rawStart);
+      const endDays = Math.min(columnCount, rawEnd);
+
+      return {
+        event,
+        leftDays,
+        widthDays: Math.max(endDays - leftDays, 0.01),
+        sortStart: Math.max(visibleStart.getTime(), event.startAt.getTime()),
+        sortEnd: Math.min(visibleEnd.getTime(), event.endAt.getTime()),
+      };
+    })
+    .sort((a, b) => {
+      if (a.sortStart !== b.sortStart) return a.sortStart - b.sortStart;
+      if (a.sortEnd !== b.sortEnd) return a.sortEnd - b.sortEnd;
+      return a.event.title.localeCompare(b.event.title);
+    });
+
+  const laneEnds = [];
+  return positionedEvents.map((entry) => {
+    const lane = laneEnds.findIndex((end) => end <= entry.sortStart);
+    const nextLane = lane === -1 ? laneEnds.length : lane;
+    laneEnds[nextLane] = entry.sortEnd;
+    return { ...entry, lane: nextLane };
+  });
+}
+
+function dayOffset(startKey, dateKey) {
+  return Math.round((dateKeyToMalaysiaDate(dateKey) - dateKeyToMalaysiaDate(startKey)) / MS_PER_DAY);
 }
 
 function formatPlayerCount(count) {
