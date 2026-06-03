@@ -22,12 +22,17 @@ import {
   createGame,
   createGameMasterAccount,
   deleteEvent,
+  deleteEventPlayer,
   deleteGame,
   deleteGameMasterAccount,
   fetchAdminEvents,
+  fetchEventPlayers,
+  fetchEventSecret,
   fetchGameMasters,
   fetchGames,
+  generateInvitePin,
   updateEvent,
+  updateEventPlayer,
   updateEventPublished,
   updateGameMasterAccount,
   verifyRecaptchaToken,
@@ -175,6 +180,10 @@ function AdminDashboard({ user, navigate }) {
   const [gameMasters, setGameMasters] = useState([]);
   const [editing, setEditing] = useState(null);
   const [form, setForm] = useState(emptyForm);
+  const [invitePin, setInvitePin] = useState(generateInvitePin);
+  const [originalInvitePin, setOriginalInvitePin] = useState('');
+  const [players, setPlayers] = useState([]);
+  const [inviteDetails, setInviteDetails] = useState({});
   const [gameForm, setGameForm] = useState({ name: '', color: '#2f6df6' });
   const [gmForm, setGmForm] = useState({ uid: '', name: '', email: '', password: '', active: true });
   const [showGmPassword, setShowGmPassword] = useState(false);
@@ -183,6 +192,7 @@ function AdminDashboard({ user, navigate }) {
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState(null);
+  const shareUrl = editing ? window.location.origin + '/event/' + encodeURIComponent(editing) : '';
 
   const loadAdminData = async () => {
     setLoading(true);
@@ -193,9 +203,23 @@ function AdminDashboard({ user, navigate }) {
         fetchGames(),
         fetchGameMasters(),
       ]);
+      const secretPairs = await Promise.all(
+        nextEvents.map(async (event) => {
+          if (event.inviteEnabled !== true) return [event.id, null];
+          const secret = await fetchEventSecret(event.id);
+          return [
+            event.id,
+            {
+              pin: secret?.pin || '',
+              url: window.location.origin + '/event/' + encodeURIComponent(event.id),
+            },
+          ];
+        }),
+      );
       setEvents(nextEvents);
       setGames(nextGames);
       setGameMasters(nextGameMasters);
+      setInviteDetails(Object.fromEntries(secretPairs.filter(([, details]) => details !== null)));
     } catch (err) {
       setError(toUserError(err, 'Could not load admin events'));
     } finally {
@@ -215,7 +239,7 @@ function AdminDashboard({ user, navigate }) {
     if (event) editEvent(event);
   }, [events, editing, loading]);
 
-  const editEvent = (event) => {
+  const editEvent = async (event) => {
     const matchingGame = games.find((game) => game.name === event.game);
     setEditing(event.id);
     setForm({
@@ -234,12 +258,30 @@ function AdminDashboard({ user, navigate }) {
       inviteEnabled: event.inviteEnabled === true,
     });
     setAdminTab('event');
+    setInvitePin('');
+    setOriginalInvitePin('');
+    setPlayers([]);
+    try {
+      const [secret, nextPlayers] = await Promise.all([
+        fetchEventSecret(event.id),
+        fetchEventPlayers(event.id),
+      ]);
+      const loadedPin = secret?.pin || '';
+      setInvitePin(loadedPin);
+      setOriginalInvitePin(loadedPin);
+      setPlayers(nextPlayers);
+    } catch (err) {
+      setError(toUserError(err, 'Could not load invite details'));
+    }
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
   const resetForm = () => {
     setEditing(null);
     setForm(emptyForm);
+    setInvitePin(generateInvitePin());
+    setOriginalInvitePin('');
+    setPlayers([]);
     setError(null);
   };
 
@@ -275,8 +317,13 @@ function AdminDashboard({ user, navigate }) {
     };
 
     try {
-      if (editing) await updateEvent(editing, payload);
-      else await createEvent(payload);
+      const inviteOptions = form.inviteEnabled && invitePin ? { invitePin } : {};
+      if (editing) {
+        const changedInviteOptions = invitePin !== originalInvitePin ? inviteOptions : {};
+        await updateEvent(editing, payload, changedInviteOptions);
+      } else {
+        await createEvent(payload, inviteOptions);
+      }
       resetForm();
       await loadAdminData();
     } catch (err) {
@@ -292,6 +339,7 @@ function AdminDashboard({ user, navigate }) {
     setError(null);
     try {
       await deleteEvent(event.id);
+      if (editing === event.id) resetForm();
       await loadAdminData();
     } catch (err) {
       setError(toUserError(err, 'Unable to delete event'));
@@ -310,6 +358,29 @@ function AdminDashboard({ user, navigate }) {
       setError(toUserError(err, 'Unable to update publish state'));
     } finally {
       setBusy(false);
+    }
+  };
+
+  const savePlayer = async (player) => {
+    const nextName = window.prompt('Player name', player.name);
+    if (!nextName) return;
+    setError(null);
+    try {
+      await updateEventPlayer(editing, player.id, { name: nextName.trim() });
+      setPlayers(await fetchEventPlayers(editing));
+    } catch (err) {
+      setError(toUserError(err, 'Unable to update player'));
+    }
+  };
+
+  const removePlayer = async (player) => {
+    if (!window.confirm('Remove ' + player.name + '?')) return;
+    setError(null);
+    try {
+      await deleteEventPlayer(editing, player.id);
+      setPlayers(await fetchEventPlayers(editing));
+    } catch (err) {
+      setError(toUserError(err, 'Unable to delete player'));
     }
   };
 
@@ -484,6 +555,11 @@ function AdminDashboard({ user, navigate }) {
                   <div className="admin-event-title">
                     <span className={`status-dot ${getEventStatus(event)}`} />
                     <h3>{event.title}</h3>
+                    {event.inviteEnabled === true && inviteDetails[event.id] && (
+                      <small className="invite-summary">
+                        PIN {inviteDetails[event.id].pin || '------'} / {inviteDetails[event.id].url}
+                      </small>
+                    )}
                   </div>
                 </div>
                 <time>{formatDateTime(event.startAt)}</time>
@@ -536,6 +612,7 @@ function AdminDashboard({ user, navigate }) {
           </div>
 
           {adminTab === 'event' && (
+            <>
             <form className="event-form" onSubmit={submit}>
               <div className="section-heading">
                 <Plus size={20} />
@@ -623,6 +700,29 @@ function AdminDashboard({ user, navigate }) {
                 />
                 Invite enabled
               </label>
+              <div className="invite-panel">
+                <label>
+                  6-digit PIN
+                  <div className="field-with-action">
+                    <input
+                      value={invitePin}
+                      onChange={(event) => setInvitePin(event.target.value.replace(/\D/g, '').slice(0, 6))}
+                      inputMode="numeric"
+                      pattern="[0-9]{6}"
+                      required={form.inviteEnabled}
+                    />
+                    <button className="icon-button" type="button" onClick={() => setInvitePin(generateInvitePin())} title="Randomize PIN">
+                      <RefreshCw size={17} />
+                    </button>
+                  </div>
+                </label>
+                {editing && (
+                  <label>
+                    Invite link
+                    <input value={shareUrl} readOnly />
+                  </label>
+                )}
+              </div>
               {error && (
                 <FormError
                   title={error.title}
@@ -643,6 +743,30 @@ function AdminDashboard({ user, navigate }) {
                 </button>
               </div>
             </form>
+            {editing && (
+              <section className="event-form">
+                <div className="section-heading">
+                  <UserRound size={20} />
+                  <h2>Joined players</h2>
+                </div>
+                <div className="game-list">
+                  {players.length === 0 && <p>No players have joined yet.</p>}
+                  {players.map((player) => (
+                    <article className="game-entry" key={player.id}>
+                      <span className="status-dot" />
+                      <span>{player.name}</span>
+                      <button className="icon-button" type="button" onClick={() => savePlayer(player)} title="Edit player">
+                        <Edit3 size={17} />
+                      </button>
+                      <button className="icon-button danger" type="button" onClick={() => removePlayer(player)} title="Delete player">
+                        <Trash2 size={17} />
+                      </button>
+                    </article>
+                  ))}
+                </div>
+              </section>
+            )}
+            </>
           )}
 
           {adminTab === 'game' && (
