@@ -27,7 +27,6 @@ import {
   generateInvitePin,
   updateEvent,
   updateEventPlayer,
-  verifyRecaptchaToken,
 } from '../events.js';
 import {
   formatDateTime,
@@ -38,7 +37,6 @@ import {
 } from '../time.js';
 import { FormError, StatePanel } from '../components/AppChrome.jsx';
 import { bindForm, emptyForm, selectGame, syncStartDate } from '../shared/forms.js';
-import { createRecaptchaToken, preloadRecaptcha } from '../recaptcha.js';
 
 export function GameMasterView({ navigate }) {
   const [user, setUser] = useState(null);
@@ -74,17 +72,11 @@ function GameMasterSignInView({ navigate }) {
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
 
-  useEffect(() => {
-    preloadRecaptcha().catch(() => {});
-  }, []);
-
   const submit = async (event) => {
     event.preventDefault();
     setBusy(true);
     setError("");
     try {
-      const recaptchaToken = await createRecaptchaToken("gm_login");
-      await verifyRecaptchaToken({ recaptchaToken, action: "gm_login" });
       await signInWithEmailAndPassword(auth, email, password);
     } catch (err) {
       setError(toInlineError(err, "Sign-in failed."));
