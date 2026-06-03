@@ -105,7 +105,10 @@ export const updateGameMasterAccount = onCall(callableOptions, async (request) =
 export const deleteGameMasterAccount = onCall(callableOptions, async (request) => {
   await requireAdmin(request);
   const uid = assertString(request.data?.uid, "UID", 128);
-  await auth.updateUser(uid, { disabled: true });
+  const user = await db.doc(`gameMasters/${uid}`).get()
+  if (user.data['email']) {
+    await auth.updateUser(uid, { disabled: true });
+  }
   await db.doc(`gameMasters/${uid}`).delete();
   return { uid };
 });
