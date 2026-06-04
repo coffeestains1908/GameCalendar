@@ -1,4 +1,5 @@
 import { initializeApp } from 'firebase/app';
+import { getAnalytics, isSupported } from 'firebase/analytics';
 import {
   browserLocalPersistence,
   getAuth,
@@ -7,7 +8,7 @@ import {
 import { doc, getDoc, getFirestore } from 'firebase/firestore';
 import { getFunctions, httpsCallable } from 'firebase/functions';
 
-const firebaseConfig = {
+const requiredFirebaseConfig = {
   apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
   authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN,
   projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID,
@@ -16,12 +17,33 @@ const firebaseConfig = {
   appId: import.meta.env.VITE_FIREBASE_APP_ID,
 };
 
-export const firebaseReady = Object.values(firebaseConfig).every(Boolean);
+const firebaseConfig = {
+  ...requiredFirebaseConfig,
+  measurementId: import.meta.env.VITE_FIREBASE_MEASUREMENT_ID,
+};
+
+export const firebaseReady = Object.values(requiredFirebaseConfig).every(Boolean);
 
 export const app = firebaseReady ? initializeApp(firebaseConfig) : null;
 export const auth = app ? getAuth(app) : null;
 export const db = app ? getFirestore(app) : null;
 export const functions = app ? getFunctions(app, 'asia-southeast1') : null;
+
+let analyticsPromise = null;
+
+export function getFirebaseAnalytics() {
+  if (app == null || firebaseConfig.measurementId == null) return Promise.resolve(null);
+
+  if (analyticsPromise == null) {
+    analyticsPromise = isSupported()
+      .then((supported) => (supported ? getAnalytics(app) : null))
+      .catch(() => null);
+  }
+
+  return analyticsPromise;
+}
+
+void getFirebaseAnalytics();
 
 if (auth) {
   setPersistence(auth, browserLocalPersistence).catch(() => {});
