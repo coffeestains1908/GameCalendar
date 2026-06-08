@@ -687,6 +687,42 @@
     @apply grid gap-0 overflow-hidden bg-[#11151d];
   }
 
+  .admin-event-scroll {
+    @apply min-h-0;
+  }
+
+  @media (min-width: 861px) {
+    .admin-shell {
+      height: 100vh;
+      @apply flex flex-col overflow-hidden;
+    }
+
+    .admin-shell .topbar {
+      @apply shrink-0;
+    }
+
+    .admin-shell .admin-layout {
+      @apply flex-1 items-stretch;
+      min-height: 0;
+    }
+
+    .admin-event-list {
+      grid-template-rows: auto auto minmax(0, 1fr);
+      min-height: 0;
+    }
+
+    .admin-event-scroll {
+      overflow-y: auto;
+      scrollbar-color: #3b4658 #11151d;
+      scrollbar-width: thin;
+    }
+
+    .admin-tools {
+      max-height: 100%;
+      overflow-y: auto;
+    }
+  }
+
   .admin-filters {
     @apply grid gap-2 border-t border-[#26303f] bg-[#151922] p-2.5;
   }

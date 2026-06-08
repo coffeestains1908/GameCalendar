@@ -501,7 +501,7 @@ function AdminDashboard({ user, navigate }) {
       </header>
 
       <section className="admin-layout">
-        <section className="admin-list">
+        <section className="admin-list admin-event-list">
           <div className="section-heading">
             <CalendarDays size={20} />
             <h2>Events</h2>
@@ -534,7 +534,8 @@ function AdminDashboard({ user, navigate }) {
               </label>
             </div>
           </div>
-          {loading && <StatePanel icon={<Loader2 className="spin" />} title="Loading events" />}
+          <div className="admin-event-scroll">
+            {loading && <StatePanel icon={<Loader2 className="spin" />} title="Loading events" />}
           {!loading && error && (
             <StatePanel
               icon={<CalendarDays />}
@@ -584,6 +585,7 @@ function AdminDashboard({ user, navigate }) {
                 </div>
               </article>
             ))}
+          </div>
         </section>
 
         <section className="admin-tools">

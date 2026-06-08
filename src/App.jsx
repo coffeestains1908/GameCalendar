@@ -43,12 +43,14 @@ export function App() {
     page = <PublicCalendar navigate={navigate} />;
   }
 
+  const showCreditFooter = !route.startsWith('/admin') && !route.startsWith('/gm');
+
   return (
     <>
       <StarWarpBackground />
       <div className="app-content">
         {page}
-        <CreditFooter />
+        {showCreditFooter && <CreditFooter />}
       </div>
     </>
   );

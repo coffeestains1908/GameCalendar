@@ -9,6 +9,7 @@ import {
   Gamepad2,
   Loader2,
   MapPin,
+  RefreshCw,
   Trash2,
   UserRound,
 } from 'lucide-react';
@@ -19,15 +20,23 @@ import {
   deleteEventPlayer,
   fetchEvent,
   fetchEventPlayers,
+  fetchEventSecret,
+  fetchGames,
+  generateInvitePin,
   joinEventWithPin,
+  updateEvent,
   updateEventPlayer,
 } from '../events.js';
 import {
   formatCompactDate,
   formatTime,
+  malaysiaInputToDate,
   MALAYSIA_TIME_ZONE,
+  toInputDate,
+  toInputTime,
 } from '../time.js';
-import { StatePanel } from '../components/AppChrome.jsx';
+import { FormError, StatePanel } from '../components/AppChrome.jsx';
+import { bindForm, selectGame, syncStartDate } from '../shared/forms.js';
 import { createRecaptchaToken, preloadRecaptcha, recaptchaSiteKey } from '../recaptcha.js';
 
 const googleDatePartFormatter = new Intl.DateTimeFormat('en-CA', {
@@ -68,6 +77,7 @@ export function EventInfoPage({ eventId, navigate }) {
   const [user, setUser] = useState(null);
   const [viewerIsAdmin, setViewerIsAdmin] = useState(false);
   const [playerList, setPlayerList] = useState([]);
+  const [editingEvent, setEditingEvent] = useState(false);
   const shareUrl = `${window.location.origin}/event/${encodeURIComponent(eventId)}`;
   const googleCalendarUrl = event ? buildGoogleCalendarUrl(event, shareUrl) : '';
 
@@ -111,8 +121,9 @@ export function EventInfoPage({ eventId, navigate }) {
     return () => { mounted = false; };
   }, [user]);
 
+  const canEditEvent = Boolean(event && user && (viewerIsAdmin || event.createdBy === user.uid));
   const canViewPlayers = event?.inviteEnabled === true;
-  const canManagePlayers = Boolean(canViewPlayers && user && (viewerIsAdmin || event.createdBy === user.uid));
+  const canManagePlayers = Boolean(canViewPlayers && canEditEvent);
 
   const loadEventPlayers = useCallback(async () => {
     if (!canViewPlayers || !event) {
@@ -121,6 +132,23 @@ export function EventInfoPage({ eventId, navigate }) {
     }
     setPlayerList(await fetchEventPlayers(event.id));
   }, [canViewPlayers, event]);
+
+  const reloadEvent = useCallback(async () => {
+    const nextEvent = await fetchEvent(eventId);
+    if (!nextEvent || !nextEvent.published) {
+      setEvent(null);
+      setEditingEvent(false);
+      setPlayerList([]);
+      setError({
+        title: 'Event not available',
+        detail: 'This event is unpublished, deleted, or the link is no longer valid.',
+      });
+      return null;
+    }
+    setEvent(nextEvent);
+    if (nextEvent.inviteEnabled !== true) setPlayerList([]);
+    return nextEvent;
+  }, [eventId]);
 
   useEffect(() => {
     loadEventPlayers();
@@ -154,8 +182,27 @@ export function EventInfoPage({ eventId, navigate }) {
               <CalendarPlus size={16} />
               Add to Google Calendar
             </a>
+            {canEditEvent && (
+              <button className="button compact-action secondary" type="button" onClick={() => setEditingEvent((current) => !current)}>
+                <Edit3 size={16} />
+                {editingEvent ? 'Close editor' : 'Edit event'}
+              </button>
+            )}
           </div>
           <EventDetails event={event} />
+          {editingEvent && canEditEvent && (
+            <EventEditForm
+              event={event}
+              onCancel={() => setEditingEvent(false)}
+              onSaved={async () => {
+                setEditingEvent(false);
+                const nextEvent = await reloadEvent();
+                if (nextEvent?.inviteEnabled === true) {
+                  setPlayerList(await fetchEventPlayers(nextEvent.id));
+                }
+              }}
+            />
+          )}
           {event.inviteEnabled === true && <JoinEventForm eventId={event.id} onJoined={loadEventPlayers} />}
           {canViewPlayers && !canManagePlayers && (
             <PublicJoinedPlayers players={playerList} />
@@ -170,6 +217,188 @@ export function EventInfoPage({ eventId, navigate }) {
         </section>
       )}
     </main>
+  );
+}
+
+function eventToEditForm(event) {
+  return {
+    title: event.title || "",
+    game: event.game || "",
+    gameColor: event.gameColor || "#2f6df6",
+    location: event.location || "",
+    description: event.description || "",
+    date: toInputDate(event.startAt),
+    startTime: toInputTime(event.startAt),
+    endDate: toInputDate(event.endAt),
+    endTime: toInputTime(event.endAt),
+    published: Boolean(event.published),
+    inviteEnabled: event.inviteEnabled === true,
+  };
+}
+
+function EventEditForm({ event, onCancel, onSaved }) {
+  const [form, setForm] = useState(() => eventToEditForm(event));
+  const [games, setGames] = useState([]);
+  const [invitePin, setInvitePin] = useState("");
+  const [originalInvitePin, setOriginalInvitePin] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState(null);
+
+  useEffect(() => {
+    setForm(eventToEditForm(event));
+    setError(null);
+  }, [event]);
+
+  useEffect(() => {
+    let mounted = true;
+    async function loadEditData() {
+      try {
+        const [nextGames, secret] = await Promise.all([
+          fetchGames(),
+          event.inviteEnabled === true ? fetchEventSecret(event.id) : Promise.resolve(null),
+        ]);
+        if (!mounted) return;
+        setGames(nextGames);
+        const loadedPin = secret?.pin || "";
+        setInvitePin(loadedPin);
+        setOriginalInvitePin(loadedPin);
+      } catch (err) {
+        if (mounted) setError(toUserError(err, "Could not load edit details"));
+      }
+    }
+    loadEditData();
+    return () => { mounted = false; };
+  }, [event.id, event.inviteEnabled]);
+
+  const submit = async (submitEvent) => {
+    submitEvent.preventDefault();
+    setBusy(true);
+    setError(null);
+
+    const startAt = malaysiaInputToDate(form.date, form.startTime);
+    const endAt = malaysiaInputToDate(form.endDate, form.endTime);
+    if (endAt <= startAt) {
+      setError({
+        title: "Invalid event time",
+        detail: "End date and time must be after the start date and time.",
+      });
+      setBusy(false);
+      return;
+    }
+
+    const payload = {
+      title: form.title.trim(),
+      gameMaster: event.gameMaster || "",
+      gameMasterUid: event.gameMasterUid || "",
+      createdBy: event.createdBy || event.gameMasterUid || "",
+      inviteEnabled: form.inviteEnabled,
+      game: form.game.trim(),
+      gameColor: form.gameColor,
+      location: form.location.trim(),
+      description: form.description.trim(),
+      startAt,
+      endAt,
+      published: form.published,
+    };
+
+    try {
+      const nextInvitePin = invitePin || generateInvitePin();
+      const inviteOptions = form.inviteEnabled && nextInvitePin !== originalInvitePin
+        ? { invitePin: nextInvitePin }
+        : {};
+      await updateEvent(event.id, payload, inviteOptions);
+      await onSaved?.();
+    } catch (err) {
+      setError(toUserError(err, "Unable to save event"));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <form className="join-form" onSubmit={submit}>
+      <div className="section-heading">
+        <Edit3 size={20} />
+        <h2>Edit event</h2>
+      </div>
+      <label>
+        Title
+        <input value={form.title} onChange={bindForm(setForm, "title")} required />
+      </label>
+      <label>
+        Game
+        <select value={form.game} onChange={(event) => selectGame(setForm, games, event.target.value)} required>
+          <option value="">Select a game</option>
+          {form.game && !games.some((game) => game.name === form.game) && <option value={form.game}>{form.game}</option>}
+          {games.map((game) => <option value={game.name} key={game.id}>{game.name}</option>)}
+        </select>
+      </label>
+      <label>
+        Location
+        <input value={form.location} onChange={bindForm(setForm, "location")} required />
+      </label>
+      <label>
+        Description
+        <textarea value={form.description} onChange={bindForm(setForm, "description")} rows="4" required />
+      </label>
+      <div className="two-col">
+        <label>
+          Date
+          <input type="date" value={form.date} onChange={syncStartDate(setForm)} required />
+        </label>
+        <label>
+          Time start
+          <input type="time" value={form.startTime} onChange={bindForm(setForm, "startTime")} required />
+        </label>
+      </div>
+      <div className="two-col">
+        <label>
+          End date
+          <input type="date" value={form.endDate} onChange={bindForm(setForm, "endDate")} required />
+        </label>
+        <label>
+          Time end
+          <input type="time" value={form.endTime} onChange={bindForm(setForm, "endTime")} required />
+        </label>
+      </div>
+      <div className="two-col">
+        <label className="toggle-row">
+          <input type="checkbox" checked={form.published} onChange={(event) => setForm((current) => ({ ...current, published: event.target.checked }))} />
+          Published
+        </label>
+        <label className="toggle-row">
+          <input type="checkbox" checked={form.inviteEnabled} onChange={(event) => setForm((current) => ({ ...current, inviteEnabled: event.target.checked }))} />
+          Invite enabled
+        </label>
+      </div>
+      {form.inviteEnabled && (
+        <label>
+          6-digit PIN
+          <div className="field-with-action">
+            <input
+              value={invitePin}
+              onChange={(event) => setInvitePin(event.target.value.replace(/\D/g, "").slice(0, 6))}
+              inputMode="numeric"
+              pattern="[0-9]{6}"
+              required
+            />
+            <button className="icon-button" type="button" onClick={() => setInvitePin(generateInvitePin())} title="Randomize PIN">
+              <RefreshCw size={17} />
+            </button>
+          </div>
+        </label>
+      )}
+      {error && <FormError title={error.title} detail={error.detail} actionUrl={error.actionUrl} actionLabel="Open Firebase index" />}
+      <div className="form-actions">
+        <button className="button secondary" type="button" onClick={onCancel} disabled={busy}>
+          Cancel
+        </button>
+        <button className="button" type="submit" disabled={busy}>
+          {busy ? <Loader2 className="spin" size={17} /> : <CheckCircle2 size={17} />}
+          Save changes
+        </button>
+      </div>
+    </form>
   );
 }
 
