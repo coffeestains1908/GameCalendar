@@ -1,6 +1,6 @@
 # Chronocodex
 
-A Firebase-hosted React + Vite calendar for game events. The public calendar shows ongoing and upcoming events as date-grouped 24-hour timelines. Admins manage games, events, and Game Master accounts at `/admin`. Game Masters sign in at `/gm`, create their own events, generate invite links with 6-digit PINs, and manage joined players.
+A Firebase-hosted React + Vite calendar for game events. The public calendar shows ongoing and upcoming events as date-grouped 24-hour timelines. Admins manage games, events, and users at `/admin`. Managed users can be assigned Admin or GM roles. Game Masters sign in at `/gm`, create their own events, generate invite links with 6-digit PINs, and manage joined players.
 
 For a product-facing overview of current screens, role capabilities, invite behavior, and common terms, see [Chronocodex Features And Terms](docs/features-and-terms.md).
 
@@ -56,7 +56,7 @@ firebase functions:secrets:set RECAPTCHA_SECRET_KEY
 admins/your-email@example.com
 ```
 
-The document can be empty. The document ID must be the lowercase Firebase Auth email. After this, use `/admin` to create Game Master login accounts.
+The document can be empty. The document ID must be the lowercase Firebase Auth email. After this, use `/admin > Users` to create Admin and GM login accounts.
 
 ## Local Development
 
@@ -122,6 +122,10 @@ firebase deploy --only functions
 Deploy one function:
 
 ```bash
+firebase deploy --only functions:createUserAccount
+firebase deploy --only functions:updateUserAccount
+firebase deploy --only functions:setUserDisabled
+firebase deploy --only functions:deleteUserAccount
 firebase deploy --only functions:createGameMasterAccount
 firebase deploy --only functions:updateGameMasterAccount
 firebase deploy --only functions:deleteGameMasterAccount
@@ -163,6 +167,10 @@ firebase deploy --only hosting,functions
 
 ## Current Callable Functions
 
+- `createUserAccount`: admin-only; creates Firebase Auth user, `users/{uid}` profile, and the role compatibility document.
+- `updateUserAccount`: admin-only; updates Firebase Auth user, `users/{uid}` profile, and role compatibility documents.
+- `setUserDisabled`: admin-only; disables or enables Firebase Auth access and app role access.
+- `deleteUserAccount`: admin-only; hard-deletes the Firebase Auth user and removes user/role profile documents.
 - `createGameMasterAccount`: admin-only; creates Firebase Auth user and `gameMasters/{uid}` profile.
 - `updateGameMasterAccount`: admin-only; updates GM profile and Auth account.
 - `deleteGameMasterAccount`: admin-only; disables Auth account and removes the GM profile.
@@ -241,6 +249,7 @@ Common causes:
 
 ## Firestore Collections
 
+- `users/{uid}`: canonical managed user profiles with Admin or GM role metadata.
 - `admins/{email}`: admin allowlist documents.
 - `gameMasters/{uid}`: Game Master profiles linked to Firebase Auth users.
 - `events/{eventId}`: event documents, including `createdBy`, `gameMasterUid`, and `inviteEnabled`.
