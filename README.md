@@ -1,5 +1,8 @@
 # Chronocodex
 
+<img width="1896" height="930" alt="image" src="https://github.com/user-attachments/assets/ac346036-7b18-4421-b0a4-b96f76b313b7" />
+
+
 A Firebase-hosted React + Vite calendar for game events. The public calendar shows ongoing and upcoming events as date-grouped 24-hour timelines. Admins manage games, events, and users at `/admin`. Managed users can be assigned Admin or GM roles. Game Masters sign in at `/gm`, create their own events, generate invite links with 6-digit PINs, and manage joined players.
 
 For a product-facing overview of current screens, role capabilities, invite behavior, and common terms, see [Chronocodex Features And Terms](docs/features-and-terms.md).
