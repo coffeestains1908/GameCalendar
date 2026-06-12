@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import {
   CalendarDays,
   CheckCircle2,
+  Copy,
   Edit3,
   Eye,
   EyeOff,
@@ -41,11 +42,17 @@ import {
   formatDateTime,
   getEventStatus,
   malaysiaInputToDate,
-  toInputDate,
-  toInputTime,
 } from '../time.js';
 import { FormError, StatePanel } from '../components/AppChrome.jsx';
-import { bindForm, emptyForm, selectGame, syncStartDate } from '../shared/forms.js';
+import {
+  bindForm,
+  buildEventSchedule,
+  createEmptyEventForm,
+  duplicateEventToForm,
+  eventToForm,
+  selectGame,
+} from '../shared/forms.js';
+import { EventScheduleFields } from '../shared/EventScheduleFields.jsx';
 import { createRecaptchaToken, preloadRecaptcha } from '../recaptcha.js';
 
 export function AdminView({ navigate }) {
@@ -179,7 +186,7 @@ function AdminDashboard({ user, navigate }) {
   const [games, setGames] = useState([]);
   const [gameMasters, setGameMasters] = useState([]);
   const [editing, setEditing] = useState(null);
-  const [form, setForm] = useState(emptyForm);
+  const [form, setForm] = useState(() => createEmptyEventForm());
   const [invitePin, setInvitePin] = useState(generateInvitePin);
   const [originalInvitePin, setOriginalInvitePin] = useState('');
   const [players, setPlayers] = useState([]);
@@ -240,23 +247,8 @@ function AdminDashboard({ user, navigate }) {
   }, [events, editing, loading]);
 
   const editEvent = async (event) => {
-    const matchingGame = games.find((game) => game.name === event.game);
     setEditing(event.id);
-    setForm({
-      title: event.title || '',
-      gameMaster: event.gameMaster || '',
-      gameMasterUid: event.gameMasterUid || '',
-      game: event.game || '',
-      gameColor: event.gameColor || matchingGame?.color || '#2f6df6',
-      location: event.location || '',
-      description: event.description || '',
-      date: toInputDate(event.startAt),
-      startTime: toInputTime(event.startAt),
-      endDate: toInputDate(event.endAt),
-      endTime: toInputTime(event.endAt),
-      published: Boolean(event.published),
-      inviteEnabled: event.inviteEnabled === true,
-    });
+    setForm(eventToForm(event, games));
     setAdminTab('event');
     setInvitePin('');
     setOriginalInvitePin('');
@@ -278,24 +270,31 @@ function AdminDashboard({ user, navigate }) {
 
   const resetForm = () => {
     setEditing(null);
-    setForm(emptyForm);
+    setForm(createEmptyEventForm());
     setInvitePin(generateInvitePin());
     setOriginalInvitePin('');
     setPlayers([]);
     setError(null);
   };
 
+  const duplicateEvent = (event) => {
+    setEditing(null);
+    setForm(duplicateEventToForm(event, games));
+    setAdminTab('event');
+    setInvitePin(generateInvitePin());
+    setOriginalInvitePin('');
+    setPlayers([]);
+    setError(null);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
   const submit = async (event) => {
     event.preventDefault();
     setBusy(true);
     setError(null);
-    const startAt = malaysiaInputToDate(form.date, form.startTime);
-    const endAt = malaysiaInputToDate(form.endDate, form.endTime);
-    if (endAt <= startAt) {
-      setError({
-        title: 'Invalid event time',
-        detail: 'End date and time must be after the start date and time.',
-      });
+    const schedule = buildEventSchedule(form);
+    if (schedule.error) {
+      setError(schedule.error);
       setBusy(false);
       return;
     }
@@ -311,8 +310,8 @@ function AdminDashboard({ user, navigate }) {
       gameColor: form.gameColor,
       location: form.location.trim(),
       description: form.description.trim(),
-      startAt,
-      endAt,
+      startAt: schedule.startAt,
+      endAt: schedule.endAt,
       published: form.published,
     };
 
@@ -571,6 +570,9 @@ function AdminDashboard({ user, navigate }) {
                   <button className="icon-button" type="button" onClick={() => editEvent(event)} title="Edit event">
                     <Edit3 size={17} />
                   </button>
+                  <button className="icon-button" type="button" onClick={() => duplicateEvent(event)} title="Duplicate event">
+                    <Copy size={17} />
+                  </button>
                   <button
                     className="icon-button"
                     type="button"
@@ -593,7 +595,10 @@ function AdminDashboard({ user, navigate }) {
             <button
               type="button"
               className={adminTab === 'event' ? 'tab-button active' : 'tab-button'}
-              onClick={() => setAdminTab('event')}
+              onClick={() => {
+                resetForm();
+                setAdminTab('event');
+              }}
             >
               Event
             </button>
@@ -616,9 +621,15 @@ function AdminDashboard({ user, navigate }) {
           {adminTab === 'event' && (
             <>
             <form className="event-form" onSubmit={submit}>
-              <div className="section-heading">
-                <Plus size={20} />
-                <h2>{editing ? 'Edit event' : 'Create event'}</h2>
+              <div className="form-title-row">
+                <div className="section-heading">
+                  <Plus size={20} />
+                  <div>
+                    <p className="eyebrow">{editing ? 'Editing event' : 'Creating new event'}</p>
+                    <h2>{editing ? form.title || 'Edit event' : 'Create event'}</h2>
+                  </div>
+                </div>
+                {editing && <span className="mode-chip">Existing event</span>}
               </div>
               <label>
                 Title
@@ -666,26 +677,7 @@ function AdminDashboard({ user, navigate }) {
                 Description
                 <textarea value={form.description} onChange={bindForm(setForm, 'description')} rows="4" required />
               </label>
-              <div className="two-col">
-                <label>
-                  Date
-                  <input type="date" value={form.date} onChange={syncStartDate(setForm)} required />
-                </label>
-                <label>
-                  Time start
-                  <input type="time" value={form.startTime} onChange={bindForm(setForm, 'startTime')} required />
-                </label>
-              </div>
-              <div className="two-col">
-                <label>
-                  End date
-                  <input type="date" value={form.endDate} onChange={bindForm(setForm, 'endDate')} required />
-                </label>
-                <label>
-                  Time end
-                  <input type="time" value={form.endTime} onChange={bindForm(setForm, 'endTime')} required />
-                </label>
-              </div>
+              <EventScheduleFields form={form} setForm={setForm} />
               <label className="toggle-row">
                 <input
                   type="checkbox"
@@ -736,7 +728,7 @@ function AdminDashboard({ user, navigate }) {
               <div className="form-actions">
                 {editing && (
                   <button className="button secondary" type="button" onClick={resetForm}>
-                    Cancel
+                    Cancel edit
                   </button>
                 )}
                 <button className="button" type="submit" disabled={busy}>

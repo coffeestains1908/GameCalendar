@@ -617,6 +617,80 @@
       @apply mt-4 grid gap-3 rounded-lg border border-[#293447] bg-[#11151d] p-3;
   }
 
+  .form-title-row {
+    @apply flex flex-wrap items-start justify-between gap-3;
+  }
+
+  .mode-chip {
+    @apply rounded-full border border-[#33435a] bg-[#202632] px-2.5 py-1 text-[0.68rem] font-black uppercase text-[#8cc7ff];
+  }
+
+  .schedule-fields {
+    @apply grid gap-3 rounded-lg border border-[#293447] bg-[#11151d] p-3;
+  }
+
+  .schedule-heading {
+    @apply flex min-h-8 items-center gap-2 rounded-lg border border-[#303b4e] bg-[#0f131b] px-3 text-sm font-extrabold text-[#dce6f5];
+  }
+
+  .schedule-heading svg {
+    @apply shrink-0 text-[#8cc7ff];
+  }
+
+  .segmented-control {
+    @apply grid grid-cols-2 rounded-lg border border-[#303b4e] bg-[#0f131b] p-1;
+  }
+
+  .segmented-control button {
+    @apply min-h-9 rounded-md border-0 bg-transparent px-3 text-sm font-extrabold text-[#9fabbd];
+  }
+
+  .segmented-control button.active {
+    @apply bg-[#2f6df6] text-white;
+  }
+
+  .day-picker-panel {
+    @apply overflow-x-auto rounded-lg border border-[#303b4e] bg-[#0f131b] p-2;
+  }
+
+  .day-picker-panel .rdp-root {
+    --rdp-accent-color: #4f89ff;
+    --rdp-accent-background-color: #1c2f52;
+    --rdp-day-height: 36px;
+    --rdp-day-width: 36px;
+    --rdp-range_middle-background-color: #1c2f52;
+    --rdp-range_middle-color: #f4f7fb;
+    --rdp-range_start-color: #ffffff;
+    --rdp-range_end-color: #ffffff;
+    @apply mx-auto text-[#dce6f5];
+  }
+
+  .day-picker-panel .rdp-months {
+    @apply justify-center gap-3;
+  }
+
+  .day-picker-panel .rdp-caption_label,
+  .day-picker-panel .rdp-weekday {
+    @apply text-[#b8c3d4];
+  }
+
+  .day-picker-panel .rdp-day {
+    @apply rounded-md;
+  }
+
+  .day-picker-panel .rdp-today:not(.rdp-selected) {
+    @apply text-[#8cc7ff];
+  }
+
+  .field-with-icon {
+    @apply grid items-center gap-2;
+    grid-template-columns: 20px minmax(0, 1fr);
+  }
+
+  .field-with-icon svg {
+    @apply text-[#8cc7ff];
+  }
+
   .form-error p {
     @apply mt-1 mb-0;
   }

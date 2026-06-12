@@ -30,13 +30,11 @@ import {
 import {
   formatCompactDate,
   formatTime,
-  malaysiaInputToDate,
   MALAYSIA_TIME_ZONE,
-  toInputDate,
-  toInputTime,
 } from '../time.js';
 import { FormError, StatePanel } from '../components/AppChrome.jsx';
-import { bindForm, selectGame, syncStartDate } from '../shared/forms.js';
+import { bindForm, buildEventSchedule, eventToForm, selectGame } from '../shared/forms.js';
+import { EventScheduleFields } from '../shared/EventScheduleFields.jsx';
 import { createRecaptchaToken, preloadRecaptcha, recaptchaSiteKey } from '../recaptcha.js';
 
 const googleDatePartFormatter = new Intl.DateTimeFormat('en-CA', {
@@ -220,24 +218,8 @@ export function EventInfoPage({ eventId, navigate }) {
   );
 }
 
-function eventToEditForm(event) {
-  return {
-    title: event.title || "",
-    game: event.game || "",
-    gameColor: event.gameColor || "#2f6df6",
-    location: event.location || "",
-    description: event.description || "",
-    date: toInputDate(event.startAt),
-    startTime: toInputTime(event.startAt),
-    endDate: toInputDate(event.endAt),
-    endTime: toInputTime(event.endAt),
-    published: Boolean(event.published),
-    inviteEnabled: event.inviteEnabled === true,
-  };
-}
-
 function EventEditForm({ event, onCancel, onSaved }) {
-  const [form, setForm] = useState(() => eventToEditForm(event));
+  const [form, setForm] = useState(() => eventToForm(event));
   const [games, setGames] = useState([]);
   const [invitePin, setInvitePin] = useState("");
   const [originalInvitePin, setOriginalInvitePin] = useState("");
@@ -245,9 +227,9 @@ function EventEditForm({ event, onCancel, onSaved }) {
   const [error, setError] = useState(null);
 
   useEffect(() => {
-    setForm(eventToEditForm(event));
+    setForm(eventToForm(event, games));
     setError(null);
-  }, [event]);
+  }, [event, games]);
 
   useEffect(() => {
     let mounted = true;
@@ -275,13 +257,9 @@ function EventEditForm({ event, onCancel, onSaved }) {
     setBusy(true);
     setError(null);
 
-    const startAt = malaysiaInputToDate(form.date, form.startTime);
-    const endAt = malaysiaInputToDate(form.endDate, form.endTime);
-    if (endAt <= startAt) {
-      setError({
-        title: "Invalid event time",
-        detail: "End date and time must be after the start date and time.",
-      });
+    const schedule = buildEventSchedule(form);
+    if (schedule.error) {
+      setError(schedule.error);
       setBusy(false);
       return;
     }
@@ -296,8 +274,8 @@ function EventEditForm({ event, onCancel, onSaved }) {
       gameColor: form.gameColor,
       location: form.location.trim(),
       description: form.description.trim(),
-      startAt,
-      endAt,
+      startAt: schedule.startAt,
+      endAt: schedule.endAt,
       published: form.published,
     };
 
@@ -319,7 +297,10 @@ function EventEditForm({ event, onCancel, onSaved }) {
     <form className="join-form" onSubmit={submit}>
       <div className="section-heading">
         <Edit3 size={20} />
-        <h2>Edit event</h2>
+        <div>
+          <p className="eyebrow">Editing event</p>
+          <h2>{form.title || 'Edit event'}</h2>
+        </div>
       </div>
       <label>
         Title
@@ -341,26 +322,7 @@ function EventEditForm({ event, onCancel, onSaved }) {
         Description
         <textarea value={form.description} onChange={bindForm(setForm, "description")} rows="4" required />
       </label>
-      <div className="two-col">
-        <label>
-          Date
-          <input type="date" value={form.date} onChange={syncStartDate(setForm)} required />
-        </label>
-        <label>
-          Time start
-          <input type="time" value={form.startTime} onChange={bindForm(setForm, "startTime")} required />
-        </label>
-      </div>
-      <div className="two-col">
-        <label>
-          End date
-          <input type="date" value={form.endDate} onChange={bindForm(setForm, "endDate")} required />
-        </label>
-        <label>
-          Time end
-          <input type="time" value={form.endTime} onChange={bindForm(setForm, "endTime")} required />
-        </label>
-      </div>
+      <EventScheduleFields form={form} setForm={setForm} />
       <div className="two-col">
         <label className="toggle-row">
           <input type="checkbox" checked={form.published} onChange={(event) => setForm((current) => ({ ...current, published: event.target.checked }))} />
@@ -391,7 +353,7 @@ function EventEditForm({ event, onCancel, onSaved }) {
       {error && <FormError title={error.title} detail={error.detail} actionUrl={error.actionUrl} actionLabel="Open Firebase index" />}
       <div className="form-actions">
         <button className="button secondary" type="button" onClick={onCancel} disabled={busy}>
-          Cancel
+          Cancel edit
         </button>
         <button className="button" type="submit" disabled={busy}>
           {busy ? <Loader2 className="spin" size={17} /> : <CheckCircle2 size={17} />}
