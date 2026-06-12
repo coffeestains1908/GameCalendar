@@ -9,7 +9,6 @@ import {
   Gamepad2,
   Loader2,
   MapPin,
-  RefreshCw,
   Trash2,
   UserRound,
 } from 'lucide-react';
@@ -17,6 +16,7 @@ import { onAuthStateChanged } from 'firebase/auth';
 import { auth, isAllowedAdmin } from '../firebase.js';
 import { toInlineError, toUserError } from '../errors.js';
 import {
+  deleteEventSecret,
   deleteEventPlayer,
   fetchEvent,
   fetchEventPlayers,
@@ -35,6 +35,7 @@ import {
 import { FormError, StatePanel } from '../components/AppChrome.jsx';
 import { bindForm, buildEventSchedule, eventToForm, selectGame } from '../shared/forms.js';
 import { EventScheduleFields } from '../shared/EventScheduleFields.jsx';
+import { InvitePanel, PublishedSwitch } from '../shared/EventFormControls.jsx';
 import { createRecaptchaToken, preloadRecaptcha, recaptchaSiteKey } from '../recaptcha.js';
 
 const googleDatePartFormatter = new Intl.DateTimeFormat('en-CA', {
@@ -285,6 +286,7 @@ function EventEditForm({ event, onCancel, onSaved }) {
         ? { invitePin: nextInvitePin }
         : {};
       await updateEvent(event.id, payload, inviteOptions);
+      if (!form.inviteEnabled) await deleteEventSecret(event.id);
       await onSaved?.();
     } catch (err) {
       setError(toUserError(err, "Unable to save event"));
@@ -320,36 +322,19 @@ function EventEditForm({ event, onCancel, onSaved }) {
       </label>
       <label>
         Description
-        <textarea value={form.description} onChange={bindForm(setForm, "description")} rows="4" required />
+        <textarea value={form.description} onChange={bindForm(setForm, "description")} rows="2" required />
       </label>
       <EventScheduleFields form={form} setForm={setForm} />
-      <div className="two-col">
-        <label className="toggle-row">
-          <input type="checkbox" checked={form.published} onChange={(event) => setForm((current) => ({ ...current, published: event.target.checked }))} />
-          Published
-        </label>
-        <label className="toggle-row">
-          <input type="checkbox" checked={form.inviteEnabled} onChange={(event) => setForm((current) => ({ ...current, inviteEnabled: event.target.checked }))} />
-          Invite enabled
-        </label>
-      </div>
-      {form.inviteEnabled && (
-        <label>
-          6-digit PIN
-          <div className="field-with-action">
-            <input
-              value={invitePin}
-              onChange={(event) => setInvitePin(event.target.value.replace(/\D/g, "").slice(0, 6))}
-              inputMode="numeric"
-              pattern="[0-9]{6}"
-              required
-            />
-            <button className="icon-button" type="button" onClick={() => setInvitePin(generateInvitePin())} title="Randomize PIN">
-              <RefreshCw size={17} />
-            </button>
-          </div>
-        </label>
-      )}
+      <PublishedSwitch checked={form.published} setForm={setForm} />
+      <InvitePanel
+        editing
+        form={form}
+        generateInvitePin={generateInvitePin}
+        invitePin={invitePin}
+        setForm={setForm}
+        setInvitePin={setInvitePin}
+        shareUrl={`${window.location.origin}/event/${encodeURIComponent(event.id)}`}
+      />
       {error && <FormError title={error.title} detail={error.detail} actionUrl={error.actionUrl} actionLabel="Open Firebase index" />}
       <div className="form-actions">
         <button className="button secondary" type="button" onClick={onCancel} disabled={busy}>

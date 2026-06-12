@@ -24,6 +24,7 @@ import {
   createGameMasterAccount,
   deleteEvent,
   deleteEventPlayer,
+  deleteEventSecret,
   deleteGame,
   deleteGameMasterAccount,
   fetchAdminEvents,
@@ -38,12 +39,14 @@ import {
   updateGameMasterAccount,
   verifyRecaptchaToken,
 } from '../events.js';
-import {
-  formatDateTime,
-  getEventStatus,
-  malaysiaInputToDate,
-} from '../time.js';
+import { malaysiaInputToDate } from '../time.js';
 import { FormError, StatePanel } from '../components/AppChrome.jsx';
+import {
+  AdminEventList,
+  EventListPagination,
+  getEventPageCount,
+  paginateEvents,
+} from '../shared/AdminEventList.jsx';
 import {
   bindForm,
   buildEventSchedule,
@@ -53,6 +56,7 @@ import {
   selectGame,
 } from '../shared/forms.js';
 import { EventScheduleFields } from '../shared/EventScheduleFields.jsx';
+import { InvitePanel, PublishedSwitch } from '../shared/EventFormControls.jsx';
 import { createRecaptchaToken, preloadRecaptcha } from '../recaptcha.js';
 
 export function AdminView({ navigate }) {
@@ -187,7 +191,7 @@ function AdminDashboard({ user, navigate }) {
   const [gameMasters, setGameMasters] = useState([]);
   const [editing, setEditing] = useState(null);
   const [form, setForm] = useState(() => createEmptyEventForm());
-  const [invitePin, setInvitePin] = useState(generateInvitePin);
+  const [invitePin, setInvitePin] = useState('');
   const [originalInvitePin, setOriginalInvitePin] = useState('');
   const [players, setPlayers] = useState([]);
   const [inviteDetails, setInviteDetails] = useState({});
@@ -196,6 +200,7 @@ function AdminDashboard({ user, navigate }) {
   const [showGmPassword, setShowGmPassword] = useState(false);
   const [adminTab, setAdminTab] = useState('event');
   const [filters, setFilters] = useState({ search: '', startDate: '', endDate: '' });
+  const [eventPage, setEventPage] = useState(1);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState(null);
@@ -258,7 +263,7 @@ function AdminDashboard({ user, navigate }) {
         fetchEventSecret(event.id),
         fetchEventPlayers(event.id),
       ]);
-      const loadedPin = secret?.pin || '';
+      const loadedPin = event.inviteEnabled === true ? secret?.pin || '' : '';
       setInvitePin(loadedPin);
       setOriginalInvitePin(loadedPin);
       setPlayers(nextPlayers);
@@ -271,7 +276,7 @@ function AdminDashboard({ user, navigate }) {
   const resetForm = () => {
     setEditing(null);
     setForm(createEmptyEventForm());
-    setInvitePin(generateInvitePin());
+    setInvitePin('');
     setOriginalInvitePin('');
     setPlayers([]);
     setError(null);
@@ -279,9 +284,10 @@ function AdminDashboard({ user, navigate }) {
 
   const duplicateEvent = (event) => {
     setEditing(null);
-    setForm(duplicateEventToForm(event, games));
+    const duplicateForm = duplicateEventToForm(event, games);
+    setForm(duplicateForm);
     setAdminTab('event');
-    setInvitePin(generateInvitePin());
+    setInvitePin(duplicateForm.inviteEnabled ? generateInvitePin() : '');
     setOriginalInvitePin('');
     setPlayers([]);
     setError(null);
@@ -320,6 +326,7 @@ function AdminDashboard({ user, navigate }) {
       if (editing) {
         const changedInviteOptions = invitePin !== originalInvitePin ? inviteOptions : {};
         await updateEvent(editing, payload, changedInviteOptions);
+        if (!form.inviteEnabled) await deleteEventSecret(editing);
       } else {
         await createEvent(payload, inviteOptions);
       }
@@ -387,6 +394,23 @@ function AdminDashboard({ user, navigate }) {
     () => filterAdminEvents(events, filters),
     [events, filters],
   );
+  const eventPageCount = getEventPageCount(filteredEvents);
+  const paginatedEvents = useMemo(
+    () => paginateEvents(filteredEvents, eventPage),
+    [eventPage, filteredEvents],
+  );
+
+  useEffect(() => {
+    setEventPage(1);
+  }, [filters]);
+
+  useEffect(() => {
+    setEventPage((current) => Math.min(current, eventPageCount));
+  }, [eventPageCount]);
+
+  const changeEventPage = (page) => {
+    setEventPage(Math.min(Math.max(page, 1), eventPageCount));
+  };
 
   const submitGame = async (event) => {
     event.preventDefault();
@@ -548,25 +572,12 @@ function AdminDashboard({ user, navigate }) {
           {!loading && !error && events.length > 0 && filteredEvents.length === 0 && (
             <StatePanel icon={<CalendarDays />} title="No matching events" />
           )}
-          {!loading && !error &&
-            filteredEvents.map((event) => (
-              <article className="admin-event compact" key={event.id}>
-                <div className="admin-event-main">
-                  <div className="admin-event-title">
-                    <span className={`status-dot ${getEventStatus(event)}`} />
-                    <h3>{event.title}</h3>
-                    {event.inviteEnabled === true && inviteDetails[event.id] && (
-                      <small className="invite-summary">
-                        PIN {inviteDetails[event.id].pin || '------'} / {inviteDetails[event.id].url}
-                      </small>
-                    )}
-                  </div>
-                </div>
-                <time>{formatDateTime(event.startAt)}</time>
-                <span className="visibility-state" title={event.published ? 'Published' : 'Draft'}>
-                  {event.published ? <Eye size={16} /> : <EyeOff size={16} />}
-                </span>
-                <div className="admin-event-actions">
+          {!loading && !error && (
+            <AdminEventList
+              events={paginatedEvents}
+              inviteDetails={inviteDetails}
+              renderActions={(event) => (
+                <>
                   <button className="icon-button" type="button" onClick={() => editEvent(event)} title="Edit event">
                     <Edit3 size={17} />
                   </button>
@@ -584,10 +595,19 @@ function AdminDashboard({ user, navigate }) {
                   <button className="icon-button danger" type="button" onClick={() => remove(event)} title="Delete event">
                     <Trash2 size={17} />
                   </button>
-                </div>
-              </article>
-            ))}
+                </>
+              )}
+            />
+          )}
           </div>
+          {!loading && !error && (
+            <EventListPagination
+              page={eventPage}
+              pageCount={eventPageCount}
+              totalEvents={filteredEvents.length}
+              onPageChange={changeEventPage}
+            />
+          )}
         </section>
 
         <section className="admin-tools">
@@ -618,6 +638,7 @@ function AdminDashboard({ user, navigate }) {
             </button>
           </div>
 
+          <div className="admin-tab-panels">
           {adminTab === 'event' && (
             <>
             <form className="event-form" onSubmit={submit}>
@@ -675,48 +696,19 @@ function AdminDashboard({ user, navigate }) {
               </label>
               <label>
                 Description
-                <textarea value={form.description} onChange={bindForm(setForm, 'description')} rows="4" required />
+                <textarea value={form.description} onChange={bindForm(setForm, 'description')} rows="2" required />
               </label>
               <EventScheduleFields form={form} setForm={setForm} />
-              <label className="toggle-row">
-                <input
-                  type="checkbox"
-                  checked={form.published}
-                  onChange={(event) => setForm((current) => ({ ...current, published: event.target.checked }))}
-                />
-                Published
-              </label>
-              <label className="toggle-row">
-                <input
-                  type="checkbox"
-                  checked={form.inviteEnabled}
-                  onChange={(event) => setForm((current) => ({ ...current, inviteEnabled: event.target.checked }))}
-                />
-                Invite enabled
-              </label>
-              <div className="invite-panel">
-                <label>
-                  6-digit PIN
-                  <div className="field-with-action">
-                    <input
-                      value={invitePin}
-                      onChange={(event) => setInvitePin(event.target.value.replace(/\D/g, '').slice(0, 6))}
-                      inputMode="numeric"
-                      pattern="[0-9]{6}"
-                      required={form.inviteEnabled}
-                    />
-                    <button className="icon-button" type="button" onClick={() => setInvitePin(generateInvitePin())} title="Randomize PIN">
-                      <RefreshCw size={17} />
-                    </button>
-                  </div>
-                </label>
-                {editing && (
-                  <label>
-                    Invite link
-                    <input value={shareUrl} readOnly />
-                  </label>
-                )}
-              </div>
+              <PublishedSwitch checked={form.published} setForm={setForm} />
+              <InvitePanel
+                editing={Boolean(editing)}
+                form={form}
+                generateInvitePin={generateInvitePin}
+                invitePin={invitePin}
+                setForm={setForm}
+                setInvitePin={setInvitePin}
+                shareUrl={shareUrl}
+              />
               {error && (
                 <FormError
                   title={error.title}
@@ -868,6 +860,7 @@ function AdminDashboard({ user, navigate }) {
               </div>
             </section>
           )}
+          </div>
         </section>
       </section>
     </main>

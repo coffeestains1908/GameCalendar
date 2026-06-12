@@ -94,6 +94,10 @@
   textarea {
     @apply resize-y;
   }
+
+  textarea[rows="2"] {
+    min-height: 86px;
+  }
 }
 
 @layer components {
@@ -587,20 +591,20 @@
   }
 
   .form-success {
-      @apply m-0 rounded-lg border border-[#2d6a4f] bg-[#102019] p-3 font-extrabold text-[#86efb8];
+    @apply m-0 rounded-lg border border-[#2d6a4f] bg-[#102019] p-3 font-extrabold text-[#86efb8];
   }
 
   .recaptcha-field {
-      @apply min-h-[78px];
+    @apply min-h-[78px];
   }
 
   .password-field {
-     @apply grid gap-2;
+    @apply grid gap-2;
     grid-template-columns: minmax(0, 1fr) 42px;
   }
 
   .password-field .icon-button {
-     @apply h-full;
+    @apply h-full;
   }
 
   .field-with-action {
@@ -614,7 +618,39 @@
 
   .join-form,
   .invite-panel {
-      @apply mt-4 grid gap-3 rounded-lg border border-[#293447] bg-[#11151d] p-3;
+    @apply mt-4 grid gap-3 rounded-lg border border-[#293447] bg-[#11151d] p-3;
+  }
+
+  .switch-row {
+    @apply flex items-center gap-3 rounded-lg border border-[#293447] bg-[#11151d] p-3 text-[0.82rem] font-extrabold text-[#dce6f5];
+  }
+
+  .switch-row input {
+    @apply sr-only;
+  }
+
+  .switch-track {
+    @apply relative h-6 w-11 shrink-0 rounded-full border border-[#3b4658] bg-[#202632] transition;
+  }
+
+  .switch-thumb {
+    @apply absolute left-1 top-1 h-4 w-4 rounded-full bg-[#9fabbd] transition;
+  }
+
+  .switch-row input:checked+.switch-track {
+    @apply border-[#4f89ff] bg-[#2f6df6];
+  }
+
+  .switch-row input:checked+.switch-track .switch-thumb {
+    @apply translate-x-5 bg-white;
+  }
+
+  .switch-label {
+    @apply block leading-tight;
+  }
+
+  .switch-row small {
+    @apply mt-1 block text-xs font-semibold leading-snug text-[#9fabbd];
   }
 
   .form-title-row {
@@ -637,23 +673,32 @@
     @apply shrink-0 text-[#8cc7ff];
   }
 
-  .segmented-control {
-    @apply grid grid-cols-2 rounded-lg border border-[#303b4e] bg-[#0f131b] p-1;
+  .date-picker-field {
+    @apply relative;
   }
 
-  .segmented-control button {
-    @apply min-h-9 rounded-md border-0 bg-transparent px-3 text-sm font-extrabold text-[#9fabbd];
+  .date-input-row {
+    @apply grid items-end gap-3;
+    grid-template-columns: auto minmax(0, 1fr);
   }
 
-  .segmented-control button.active {
-    @apply bg-[#2f6df6] text-white;
+  .compact-toggle {
+    @apply min-h-[44px] rounded-lg border border-[#303b4e] bg-[#0f131b] px-3 py-2 text-[#dce6f5];
   }
 
-  .day-picker-panel {
-    @apply overflow-x-auto rounded-lg border border-[#303b4e] bg-[#0f131b] p-2;
+  .date-picker-field input[readonly] {
+    @apply cursor-pointer;
   }
 
-  .day-picker-panel .rdp-root {
+  .date-picker-popover {
+    @apply absolute left-0 top-[calc(100%+8px)] z-[70] max-w-[calc(100vw-32px)] overflow-x-auto rounded-lg border border-[#303b4e] bg-[#0f131b] p-2 shadow-2xl shadow-black/50;
+  }
+
+  .date-picker-status {
+    @apply m-0 mb-2 rounded-md border border-[#33435a] bg-[#151c28] px-3 py-2 text-xs font-extrabold text-[#dce6f5];
+  }
+
+  .date-picker-popover .rdp-root {
     --rdp-accent-color: #4f89ff;
     --rdp-accent-background-color: #1c2f52;
     --rdp-day-height: 36px;
@@ -665,30 +710,39 @@
     @apply mx-auto text-[#dce6f5];
   }
 
-  .day-picker-panel .rdp-months {
+  .date-picker-popover .rdp-months {
     @apply justify-center gap-3;
   }
 
-  .day-picker-panel .rdp-caption_label,
-  .day-picker-panel .rdp-weekday {
+  .date-picker-popover .rdp-caption_label,
+  .date-picker-popover .rdp-weekday {
     @apply text-[#b8c3d4];
   }
 
-  .day-picker-panel .rdp-day {
+  .date-picker-popover .rdp-day {
     @apply rounded-md;
   }
 
-  .day-picker-panel .rdp-today:not(.rdp-selected) {
+  .date-picker-popover .rdp-today:not(.rdp-selected) {
     @apply text-[#8cc7ff];
   }
 
-  .field-with-icon {
-    @apply grid items-center gap-2;
-    grid-template-columns: 20px minmax(0, 1fr);
+  .date-picker-popover .range-start,
+  .date-picker-popover .range-end {
+    @apply bg-[#2f6df6] text-white;
   }
 
-  .field-with-icon svg {
-    @apply text-[#8cc7ff];
+  .date-picker-popover .range-middle {
+    @apply bg-[#1c2f52] text-[#f4f7fb];
+  }
+
+  .three-col {
+    @apply grid gap-3;
+    grid-template-columns: minmax(0, 1.3fr) minmax(90px, 0.85fr) minmax(90px, 0.85fr);
+  }
+
+  .schedule-time-grid input[type="number"] {
+    @apply tabular-nums;
   }
 
   .form-error p {
@@ -708,16 +762,20 @@
     @apply sticky top-4 grid gap-3;
   }
 
+  .admin-tab-panels {
+    @apply grid gap-3;
+  }
+
   .admin-tabs {
-    @apply grid grid-cols-2 rounded-lg border border-[#27303d] bg-[#11151d] p-1;
+    @apply grid grid-cols-3 gap-2;
   }
 
   .tab-button {
-    @apply min-h-9 rounded-md border-0 bg-transparent px-3 text-sm font-extrabold text-[#9fabbd];
+    @apply min-h-10 rounded-lg border border-[#303b4e] bg-[#11151d]/72 px-3 text-sm font-extrabold text-[#b8c3d4];
   }
 
   .tab-button.active {
-    @apply bg-[#2f6df6] text-white;
+    @apply border-[#4f89ff] bg-[#2f6df6] text-white;
   }
 
   .event-form,
@@ -797,7 +855,12 @@
     }
 
     .admin-event-list {
-      grid-template-rows: auto auto minmax(0, 1fr);
+      grid-template-rows: auto auto minmax(0, 1fr) auto;
+      min-height: 0;
+    }
+
+    .gm-event-list {
+      grid-template-rows: auto minmax(0, 1fr) auto;
       min-height: 0;
     }
 
@@ -809,7 +872,20 @@
 
     .admin-tools {
       max-height: 100%;
+      grid-template-rows: auto minmax(0, 1fr);
+      overflow: hidden;
+    }
+
+    .gm-tools {
+      grid-template-rows: minmax(0, 1fr);
+    }
+
+    .admin-tab-panels {
+      min-height: 0;
       overflow-y: auto;
+      padding-right: 2px;
+      scrollbar-color: #3b4658 #11151d;
+      scrollbar-width: thin;
     }
   }
 
@@ -830,12 +906,12 @@
   }
 
   .admin-event.compact {
-    @apply grid items-center gap-3 rounded-none border-x-0 border-t-0 border-b border-[#26303f] bg-transparent p-2.5;
-    grid-template-columns: minmax(140px, 1fr) 132px 28px auto;
+    @apply grid items-center gap-x-3 gap-y-2 rounded-none border-x-0 border-t-0 border-b border-[#26303f] bg-transparent p-2.5;
+    grid-template-columns: minmax(180px, 1fr) minmax(160px, 260px) 28px;
   }
 
   .admin-event.compact .admin-event-actions {
-    @apply gap-1;
+    @apply col-span-3 justify-end gap-1;
   }
 
   .admin-event.compact .icon-button {
@@ -843,11 +919,11 @@
   }
 
   .admin-event-main {
-    @apply min-w-0 flex-1;
+    @apply grid min-w-0 gap-1;
   }
 
-  .admin-event-title {
-    @apply flex min-w-0 flex-wrap items-center gap-[9px];
+  .admin-event-title-row {
+    @apply flex min-w-0 items-center gap-[9px];
   }
 
   .admin-event h3 {
@@ -855,11 +931,41 @@
   }
 
   .admin-event time {
-    @apply truncate text-[0.68rem] font-bold text-[#aeb8c8];
+    @apply pl-[23px] text-[0.68rem] font-bold text-[#aeb8c8];
+  }
+
+  .admin-event-invite {
+    @apply grid min-w-0 gap-1 text-[0.68rem] font-bold text-[#aeb8c8];
+  }
+
+  .admin-event-invite span,
+  .admin-event-invite a {
+    @apply block min-w-0 truncate;
+  }
+
+  .admin-event-invite a {
+    @apply text-[#8cc7ff] no-underline;
+  }
+
+  .admin-event-invite a:hover,
+  .admin-event-invite a:focus-visible {
+    @apply text-[#c8e6ff] underline;
   }
 
   .visibility-state {
     @apply flex h-7 w-7 items-center justify-center text-[#8cc7ff];
+  }
+
+  .event-pagination {
+    @apply flex items-center justify-between gap-2 border-t border-[#26303f] bg-[#151922] p-2.5;
+  }
+
+  .event-pagination .button {
+    @apply min-h-8 px-3 py-1.5 text-xs;
+  }
+
+  .event-pagination span {
+    @apply text-center text-[0.72rem] font-black uppercase text-[#aeb8c8];
   }
 
   .pill {
@@ -937,7 +1043,9 @@
     }
 
     .admin-layout,
-    .two-col {
+    .date-input-row,
+    .two-col,
+    .three-col {
       @apply grid-cols-1;
     }
 
@@ -953,9 +1061,20 @@
       grid-template-columns: minmax(0, 1fr) auto;
     }
 
-    .admin-event time,
     .visibility-state {
       @apply hidden;
+    }
+
+    .admin-event-invite {
+      @apply col-span-2 pl-[23px];
+    }
+
+    .admin-event-actions {
+      @apply col-span-2 justify-end;
+    }
+
+    .event-pagination {
+      @apply flex-wrap justify-center;
     }
 
     .admin-tools {

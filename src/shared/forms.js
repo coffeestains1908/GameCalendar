@@ -12,17 +12,6 @@ const MINUTES_PER_DAY = 24 * 60;
 export const EVENT_DATE_MODE_SINGLE = 'single';
 export const EVENT_DATE_MODE_RANGE = 'range';
 
-export const DURATION_PRESETS = [
-  { value: 30, label: '30m' },
-  { value: 60, label: '1h' },
-  { value: 90, label: '1h 30m' },
-  { value: 120, label: '2h' },
-  { value: 180, label: '3h' },
-  { value: 240, label: '4h' },
-  { value: 360, label: '6h' },
-  { value: 480, label: '8h' },
-];
-
 export function createEmptyEventForm() {
   const today = toInputDate(new Date());
   return {
@@ -36,7 +25,7 @@ export function createEmptyEventForm() {
     dateMode: EVENT_DATE_MODE_SINGLE,
     dateRange: { from: today, to: today },
     startTime: '20:00',
-    durationMinutes: 120,
+    durationMinutes: 240,
     published: true,
     inviteEnabled: false,
   };
@@ -94,7 +83,11 @@ export function setEventDateMode(setForm, dateMode) {
       dateMode,
       dateRange: {
         from,
-        to: dateMode === EVENT_DATE_MODE_SINGLE ? from : current.dateRange.to || from,
+        to: dateMode === EVENT_DATE_MODE_SINGLE
+          ? from
+          : current.dateMode === EVENT_DATE_MODE_RANGE
+            ? current.dateRange.to
+            : '',
       },
     };
   });
@@ -129,18 +122,73 @@ export function setEventDateSelection(setForm, selection) {
   });
 }
 
-export function updateDurationMinutes(setForm, value) {
-  const durationMinutes = Math.max(0, Number(value) || 0);
-  setForm((current) => ({
-    ...current,
-    durationMinutes,
-    dateRange: {
-      ...current.dateRange,
-      to: current.dateRange.from
-        ? toInputDate(new Date(malaysiaInputToDate(current.dateRange.from, current.startTime).getTime() + durationMinutes * MS_PER_MINUTE))
-        : current.dateRange.to,
-    },
-  }));
+export function setEventRangeSelection(setForm, clickedDate, rangeStep) {
+  const clickedKey = toInputDate(clickedDate);
+  let nextStep = rangeStep;
+
+  setForm((current) => {
+    const rangeComplete = Boolean(current.dateRange.from && current.dateRange.to);
+    if (rangeStep === 'start' || rangeComplete || !current.dateRange.from) {
+      nextStep = 'end';
+      return {
+        ...current,
+        dateRange: { from: clickedKey, to: '' },
+      };
+    }
+
+    if (clickedKey < current.dateRange.from) {
+      nextStep = 'end';
+      return {
+        ...current,
+        dateRange: { from: clickedKey, to: '' },
+      };
+    }
+
+    const previousDaySpan = daySpan(current.dateRange.from, current.dateRange.to);
+    const nextDaySpan = daySpan(current.dateRange.from, clickedKey);
+    const baseMinutes = Math.max(1, current.durationMinutes - previousDaySpan * MINUTES_PER_DAY);
+    nextStep = 'start';
+    return {
+      ...current,
+      dateRange: { from: current.dateRange.from, to: clickedKey },
+      durationMinutes: nextDaySpan * MINUTES_PER_DAY + baseMinutes,
+    };
+  });
+
+  return nextStep;
+}
+
+export function durationToParts(durationMinutes) {
+  const value = Math.max(0, Number(durationMinutes) || 0);
+  return {
+    hours: Math.floor(value / 60),
+    minutes: value % 60,
+  };
+}
+
+export function durationPartsToMinutes(hours, minutes) {
+  return Math.max(0, Math.floor(Number(hours) || 0)) * 60 + clampMinutes(minutes);
+}
+
+export function updateDurationPart(setForm, key, value) {
+  setForm((current) => {
+    const parts = durationToParts(current.durationMinutes);
+    const nextParts = {
+      ...parts,
+      [key]: key === 'minutes' ? clampMinutes(value) : Math.max(0, Math.floor(Number(value) || 0)),
+    };
+    const durationMinutes = durationPartsToMinutes(nextParts.hours, nextParts.minutes);
+    return {
+      ...current,
+      durationMinutes,
+      dateRange: {
+        ...current.dateRange,
+        to: current.dateRange.from
+          ? toInputDate(new Date(malaysiaInputToDate(current.dateRange.from, current.startTime).getTime() + durationMinutes * MS_PER_MINUTE))
+          : current.dateRange.to,
+      },
+    };
+  });
 }
 
 export function buildEventSchedule(form) {
@@ -185,25 +233,6 @@ export function buildEventSchedule(form) {
   return { startAt, endAt };
 }
 
-export function durationOptionValue(durationMinutes) {
-  return DURATION_PRESETS.some((preset) => preset.value === Number(durationMinutes))
-    ? String(durationMinutes)
-    : 'custom';
-}
-
-export function formatDuration(minutes) {
-  const value = Number(minutes) || 0;
-  const days = Math.floor(value / MINUTES_PER_DAY);
-  const remainder = value % MINUTES_PER_DAY;
-  const hours = Math.floor(remainder / 60);
-  const mins = remainder % 60;
-  return [
-    days ? `${days}d` : '',
-    hours ? `${hours}h` : '',
-    mins ? `${mins}m` : '',
-  ].filter(Boolean).join(' ') || '0m';
-}
-
 export function formatSelectedDateRange(form) {
   if (!form.dateRange.from) return 'No date selected';
   const from = formatCompactDate(dateKeyToMalaysiaDate(form.dateRange.from));
@@ -216,4 +245,8 @@ export function formatSelectedDateRange(form) {
 function daySpan(from, to) {
   if (!from || !to) return 0;
   return Math.max(0, Math.round((dateKeyToMalaysiaDate(to) - dateKeyToMalaysiaDate(from)) / (MINUTES_PER_DAY * MS_PER_MINUTE)));
+}
+
+function clampMinutes(value) {
+  return Math.min(59, Math.max(0, Math.floor(Number(value) || 0)));
 }
