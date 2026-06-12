@@ -363,7 +363,7 @@
   }
 
   .calendar-board {
-    @apply w-full cursor-grab select-none overflow-x-auto border-y border-[#26303f] bg-[#10141c];
+    @apply w-full cursor-grab select-none overflow-x-auto border-y border-[#26303f] bg-[#10141c]/70;
     --day-width: 210px;
     scrollbar-width: thin;
     scrollbar-color: #3b4658 #10141c;
@@ -391,7 +391,7 @@
   }
 
   .month-span {
-    @apply relative h-10 shrink-0 border-r border-b border-[#26303f] bg-[#191d25];
+    @apply relative h-10 shrink-0 border-r border-b border-[#26303f] bg-[#191d25]/70;
   }
 
   .calendar-timeline {
@@ -406,7 +406,7 @@
 
   .date-column {
     min-width: var(--day-width);
-    @apply border-r border-[#26303f] bg-[#151922];
+    @apply border-r border-[#26303f] bg-[#151922]/62;
   }
 
   .date-column:last-child {
@@ -418,7 +418,7 @@
   }
 
   .month-header {
-    @apply sticky left-0 z-20 flex h-10 w-max min-w-[var(--day-width)] items-center bg-[#191d25] px-3 text-sm font-extrabold text-[#d8dde7];
+    @apply sticky left-0 z-20 flex h-10 w-max min-w-[var(--day-width)] items-center bg-[#191d25]/90 px-3 text-sm font-extrabold text-[#d8dde7];
   }
 
   .day-header {
@@ -438,7 +438,7 @@
   }
 
   .date-column-body {
-    min-height: calc((var(--lane-count) * 60px) + 1.5rem);
+    min-height: var(--timeline-height);
     @apply px-0 py-0;
   }
 
@@ -446,19 +446,26 @@
     @apply pointer-events-none absolute left-0 z-10;
     top: 3rem;
     width: calc(var(--day-width) * var(--column-count));
-    height: calc((var(--lane-count) * 60px) + 1.5rem);
+    height: var(--timeline-height);
   }
 
   .event-title {
-    @apply whitespace-nowrap font-extrabold;
+    @apply font-extrabold leading-snug;
+    overflow-wrap: anywhere;
   }
 
   .event-label {
-    @apply grid min-w-0 leading-tight;
+    @apply relative z-10 grid min-w-0 gap-0.5 leading-tight;
+    text-shadow: 0 1px 8px rgb(0 0 0 / 0.58);
   }
 
-  .event-label small {
-    @apply whitespace-nowrap text-[0.66rem] font-bold text-white/70;
+  .event-game {
+    @apply truncate text-[0.62rem] font-black uppercase text-white/75;
+  }
+
+  .event-meta,
+  .event-location {
+    @apply truncate text-[0.66rem] font-bold text-white/72;
   }
 
   .status-dot {
@@ -478,9 +485,18 @@
   }
 
   .event-bar-button {
-    @apply pointer-events-auto absolute z-10 flex h-[42px] min-w-6 cursor-pointer items-center overflow-hidden border px-2 text-left text-[0.82rem] font-black text-white;
-    top: calc(0.75rem + (var(--event-lane) * 60px));
+    @apply pointer-events-auto absolute z-10 flex cursor-pointer items-start overflow-hidden border px-2.5 py-2 text-left text-[0.82rem] font-black text-white;
+    top: var(--event-top);
+    min-height: var(--event-min-height);
     touch-action: manipulation;
+  }
+
+  .event-bar-fill {
+    @apply pointer-events-none absolute top-0 bottom-0 z-0;
+    left: var(--fill-left);
+    width: var(--fill-width);
+    opacity: 0.78;
+    box-shadow: inset 0 0 18px rgb(255 255 255 / 0.16);
   }
 
   .event-popover {
