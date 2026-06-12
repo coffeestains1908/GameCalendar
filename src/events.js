@@ -14,11 +14,13 @@ import {
   updateDoc,
   where,
 } from 'firebase/firestore';
-import { callFunction, db } from './firebase.js';
+import { sendPasswordResetEmail } from 'firebase/auth';
+import { auth, callFunction, db } from './firebase.js';
 
 const eventsCollection = () => collection(db, 'events');
 const gamesCollection = () => collection(db, 'games');
 const gameMastersCollection = () => collection(db, 'gameMasters');
+const usersCollection = () => collection(db, 'users');
 const eventSecretDoc = (eventId) => doc(db, 'eventSecrets', eventId);
 const eventPlayersCollection = (eventId) => collection(db, 'events', eventId, 'players');
 const eventPlayerDoc = (eventId, playerId) => doc(db, 'events', eventId, 'players', playerId);
@@ -234,17 +236,65 @@ export async function fetchGameMasters() {
   }));
 }
 
-export async function createGameMasterAccount(payload) {
-  const createAccount = callFunction('createGameMasterAccount');
+export async function fetchUsers() {
+  const [usersSnapshot, gameMastersSnapshot] = await Promise.all([
+    getDocs(query(usersCollection(), orderBy('name', 'asc'), limit(300))),
+    getDocs(query(gameMastersCollection(), orderBy('name', 'asc'), limit(300))),
+  ]);
+  const users = usersSnapshot.docs.map((snapshotDoc) => ({
+    id: snapshotDoc.id,
+    uid: snapshotDoc.id,
+    ...snapshotDoc.data(),
+  }));
+  const knownUids = new Set(users.map((entry) => entry.uid || entry.id));
+  const legacyGameMasters = gameMastersSnapshot.docs
+    .filter((snapshotDoc) => !knownUids.has(snapshotDoc.id))
+    .map((snapshotDoc) => ({
+      id: snapshotDoc.id,
+      uid: snapshotDoc.id,
+      role: 'gm',
+      legacy: true,
+      ...snapshotDoc.data(),
+    }));
+  return [...users, ...legacyGameMasters].sort((a, b) => {
+    const nameCompare = (a.name || '').localeCompare(b.name || '');
+    if (nameCompare !== 0) return nameCompare;
+    return (a.email || '').localeCompare(b.email || '');
+  });
+}
+
+export async function createUserAccount(payload) {
+  const createAccount = callFunction('createUserAccount');
   return createAccount(payload);
 }
 
-export async function updateGameMasterAccount(payload) {
-  const updateAccount = callFunction('updateGameMasterAccount');
+export async function updateUserAccount(payload) {
+  const updateAccount = callFunction('updateUserAccount');
   return updateAccount(payload);
 }
 
-export async function deleteGameMasterAccount(payload) {
-  const deleteAccount = callFunction('deleteGameMasterAccount');
+export async function setUserDisabled(payload) {
+  const setDisabled = callFunction('setUserDisabled');
+  return setDisabled(payload);
+}
+
+export async function deleteUserAccount(payload) {
+  const deleteAccount = callFunction('deleteUserAccount');
   return deleteAccount(payload);
+}
+
+export async function sendUserPasswordReset(email) {
+  return sendPasswordResetEmail(auth, email);
+}
+
+export async function createGameMasterAccount(payload) {
+  return createUserAccount({ ...payload, role: 'gm' });
+}
+
+export async function updateGameMasterAccount(payload) {
+  return updateUserAccount({ ...payload, role: 'gm' });
+}
+
+export async function deleteGameMasterAccount(payload) {
+  return setUserDisabled({ ...payload, disabled: true });
 }

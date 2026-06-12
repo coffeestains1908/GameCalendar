@@ -12,6 +12,7 @@ const db = getFirestore();
 const auth = getAuth();
 const recaptchaSecret = defineSecret("RECAPTCHA_SECRET_KEY");
 const callableOptions = { cors: true };
+const userRoles = new Set(["admin", "gm"]);
 
 function assertString(value, field, maxLength) {
   if (typeof value !== "string") {
@@ -24,13 +25,250 @@ function assertString(value, field, maxLength) {
   return trimmed;
 }
 
+function assertRole(value) {
+  const role = assertString(value, "Role", 20).toLowerCase();
+  if (!userRoles.has(role)) {
+    throw new HttpsError("invalid-argument", "Role is invalid.");
+  }
+  return role;
+}
+
+function toActive(value) {
+  return value !== false;
+}
+
+function userProfile(uid, payload, adminUid, existing = {}) {
+  return {
+    uid,
+    name: payload.name,
+    email: payload.email,
+    role: payload.role,
+    active: payload.active,
+    createdAt: existing.createdAt || FieldValue.serverTimestamp(),
+    updatedAt: FieldValue.serverTimestamp(),
+    createdBy: existing.createdBy || adminUid,
+    updatedBy: adminUid,
+  };
+}
+
+function gameMasterProfile(uid, payload, adminUid, existing = {}) {
+  return {
+    uid,
+    name: payload.name,
+    email: payload.email,
+    active: payload.active,
+    createdAt: existing.createdAt || FieldValue.serverTimestamp(),
+    updatedAt: FieldValue.serverTimestamp(),
+    createdBy: existing.createdBy || adminUid,
+  };
+}
+
+function adminProfile(uid, payload, adminUid, existing = {}) {
+  return {
+    uid,
+    name: payload.name,
+    email: payload.email,
+    role: "admin",
+    active: payload.active,
+    createdAt: existing.createdAt || FieldValue.serverTimestamp(),
+    updatedAt: FieldValue.serverTimestamp(),
+    createdBy: existing.createdBy || adminUid,
+  };
+}
+
 async function requireAdmin(request) {
+  const uid = request.auth?.uid;
   const email = request.auth?.token?.email;
-  if (!email) throw new HttpsError("unauthenticated", "Sign in is required.");
-  const snapshot = await db.doc(`admins/${email.toLowerCase()}`).get();
-  if (!snapshot.exists) throw new HttpsError("permission-denied", "Admin access is required.");
+  if (!uid || !email) throw new HttpsError("unauthenticated", "Sign in is required.");
+
+  const userSnapshot = await db.doc(`users/${uid}`).get();
+  if (userSnapshot.exists) {
+    const profile = userSnapshot.data();
+    if (profile.role === "admin" && profile.active === true) return request.auth;
+    throw new HttpsError("permission-denied", "Admin access is required.");
+  }
+
+  const adminSnapshot = await db.doc(`admins/${email.toLowerCase()}`).get();
+  if (!adminSnapshot.exists) throw new HttpsError("permission-denied", "Admin access is required.");
   return request.auth;
 }
+
+async function syncRoleDocs(uid, payload, adminUid, previousEmail = "") {
+  const batch = db.batch();
+  const userRef = db.doc(`users/${uid}`);
+  const adminRef = db.doc(`admins/${payload.email}`);
+  const gameMasterRef = db.doc(`gameMasters/${uid}`);
+  const [userSnapshot, adminSnapshot, gmSnapshot] = await Promise.all([
+    userRef.get(),
+    adminRef.get(),
+    gameMasterRef.get(),
+  ]);
+
+  batch.set(userRef, userProfile(uid, payload, adminUid, userSnapshot.data() || {}), { merge: true });
+
+  if (previousEmail && previousEmail !== payload.email) {
+    batch.delete(db.doc(`admins/${previousEmail}`));
+  }
+
+  if (payload.role === "admin") {
+    batch.set(adminRef, adminProfile(uid, payload, adminUid, adminSnapshot.data() || {}), { merge: true });
+    batch.delete(gameMasterRef);
+  } else {
+    batch.set(gameMasterRef, gameMasterProfile(uid, payload, adminUid, gmSnapshot.data() || {}), { merge: true });
+    batch.delete(adminRef);
+  }
+
+  await batch.commit();
+}
+
+function parseUserPayload(data, options = {}) {
+  const payload = {
+    name: assertString(data?.name, "Name", 120),
+    email: assertString(data?.email, "Email", 180).toLowerCase(),
+    role: assertRole(data?.role),
+    active: toActive(data?.active),
+  };
+  if (options.requirePassword) {
+    payload.password = assertString(data?.password, "Password", 128);
+  }
+  return payload;
+}
+
+async function createUserAccountData(data, adminAuth, roleOverride = null) {
+  const payload = parseUserPayload({ ...data, role: roleOverride || data?.role }, { requirePassword: true });
+  let userRecord;
+  try {
+    userRecord = await auth.createUser({
+      email: payload.email,
+      password: payload.password,
+      displayName: payload.name,
+      disabled: !payload.active,
+    });
+  } catch (err) {
+    throw new HttpsError("already-exists", err.message || "Could not create Auth user.");
+  }
+
+  await syncRoleDocs(userRecord.uid, payload, adminAuth.uid);
+  return { uid: userRecord.uid };
+}
+
+async function updateUserAccountData(data, adminAuth, roleOverride = null) {
+  const uid = assertString(data?.uid, "UID", 128);
+  const payload = parseUserPayload({ ...data, role: roleOverride || data?.role });
+  if (uid === adminAuth.uid && (payload.active !== true || payload.role !== "admin")) {
+    throw new HttpsError("failed-precondition", "You cannot remove your own admin access.");
+  }
+  const userSnapshot = await db.doc(`users/${uid}`).get();
+  const gmSnapshot = await db.doc(`gameMasters/${uid}`).get();
+  const previousProfile = userSnapshot.exists ? userSnapshot.data() : gmSnapshot.data() || {};
+  const previousEmail = (previousProfile.email || "").toLowerCase();
+
+  try {
+    await auth.updateUser(uid, {
+      email: payload.email,
+      displayName: payload.name,
+      disabled: !payload.active,
+    });
+  } catch (err) {
+    throw new HttpsError("not-found", err.message || "Could not update Auth user.");
+  }
+
+  await syncRoleDocs(uid, payload, adminAuth.uid, previousEmail);
+  return { uid };
+}
+
+export const createUserAccount = onCall(callableOptions, async (request) => {
+  const adminAuth = await requireAdmin(request);
+  return createUserAccountData(request.data, adminAuth);
+});
+
+export const updateUserAccount = onCall(callableOptions, async (request) => {
+  const adminAuth = await requireAdmin(request);
+  return updateUserAccountData(request.data, adminAuth);
+});
+
+export const setUserDisabled = onCall(callableOptions, async (request) => {
+  const adminAuth = await requireAdmin(request);
+  const uid = assertString(request.data?.uid, "UID", 128);
+  if (uid === adminAuth.uid) {
+    throw new HttpsError("failed-precondition", "You cannot disable your own account.");
+  }
+  const disabled = request.data?.disabled === true;
+  await auth.updateUser(uid, { disabled });
+  const active = !disabled;
+  const userSnapshot = await db.doc(`users/${uid}`).get();
+  const gmSnapshot = await db.doc(`gameMasters/${uid}`).get();
+  const profile = userSnapshot.exists ? userSnapshot.data() : gmSnapshot.data() || {};
+  const role = profile.role === "admin" ? "admin" : "gm";
+  const payload = {
+    name: profile.name || profile.email || uid,
+    email: assertString(profile.email, "Email", 180).toLowerCase(),
+    role,
+    active,
+  };
+  await syncRoleDocs(uid, payload, adminAuth.uid, payload.email);
+  return { uid, disabled };
+});
+
+export const deleteUserAccount = onCall(callableOptions, async (request) => {
+  const adminAuth = await requireAdmin(request);
+  const uid = assertString(request.data?.uid, "UID", 128);
+  if (uid === adminAuth.uid) {
+    throw new HttpsError("failed-precondition", "You cannot delete your own account.");
+  }
+
+  const [userSnapshot, gmSnapshot] = await Promise.all([
+    db.doc(`users/${uid}`).get(),
+    db.doc(`gameMasters/${uid}`).get(),
+  ]);
+  const profile = userSnapshot.exists ? userSnapshot.data() : gmSnapshot.data() || {};
+  const email = typeof profile.email === "string" ? profile.email.toLowerCase() : "";
+
+  try {
+    await auth.deleteUser(uid);
+  } catch (err) {
+    if (err.code !== "auth/user-not-found") {
+      throw new HttpsError("not-found", err.message || "Could not delete Auth user.");
+    }
+  }
+
+  const batch = db.batch();
+  batch.delete(db.doc(`users/${uid}`));
+  batch.delete(db.doc(`gameMasters/${uid}`));
+  if (email) batch.delete(db.doc(`admins/${email}`));
+  await batch.commit();
+  return { uid };
+});
+
+export const createGameMasterAccount = onCall(callableOptions, async (request) => {
+  const adminAuth = await requireAdmin(request);
+  return createUserAccountData(request.data, adminAuth, "gm");
+});
+
+export const updateGameMasterAccount = onCall(callableOptions, async (request) => {
+  const adminAuth = await requireAdmin(request);
+  return updateUserAccountData(request.data, adminAuth, "gm");
+});
+
+export const deleteGameMasterAccount = onCall(callableOptions, async (request) => {
+  const adminAuth = await requireAdmin(request);
+  const uid = assertString(request.data?.uid, "UID", 128);
+  if (uid === adminAuth.uid) {
+    throw new HttpsError("failed-precondition", "You cannot delete your own account.");
+  }
+  try {
+    await auth.updateUser(uid, { disabled: true });
+  } catch (err) {
+    if (err.code !== "auth/user-not-found") {
+      throw new HttpsError("not-found", err.message || "Could not disable Auth user.");
+    }
+  }
+  const batch = db.batch();
+  batch.delete(db.doc(`users/${uid}`));
+  batch.delete(db.doc(`gameMasters/${uid}`));
+  await batch.commit();
+  return { uid };
+});
 
 async function verifyRecaptcha(token, expectedAction) {
   const secret = recaptchaSecret.value();
@@ -56,62 +294,6 @@ async function verifyRecaptcha(token, expectedAction) {
     throw new HttpsError("permission-denied", "reCAPTCHA score is too low.");
   }
 }
-
-export const createGameMasterAccount = onCall(callableOptions, async (request) => {
-  const adminAuth = await requireAdmin(request);
-  const name = assertString(request.data?.name, "Name", 120);
-  const email = assertString(request.data?.email, "Email", 180).toLowerCase();
-  const password = assertString(request.data?.password, "Password", 128);
-  const active = request.data?.active !== false;
-
-  let userRecord;
-  try {
-    userRecord = await auth.createUser({ email, password, displayName: name, disabled: !active });
-  } catch (err) {
-    throw new HttpsError("already-exists", err.message || "Could not create Auth user.");
-  }
-
-  await db.doc(`gameMasters/${userRecord.uid}`).set({
-    uid: userRecord.uid,
-    name,
-    email,
-    active,
-    createdAt: FieldValue.serverTimestamp(),
-    updatedAt: FieldValue.serverTimestamp(),
-    createdBy: adminAuth.uid,
-  });
-
-  return { uid: userRecord.uid };
-});
-
-export const updateGameMasterAccount = onCall(callableOptions, async (request) => {
-  await requireAdmin(request);
-  const uid = assertString(request.data?.uid, "UID", 128);
-  const name = assertString(request.data?.name, "Name", 120);
-  const email = assertString(request.data?.email, "Email", 180).toLowerCase();
-  const active = request.data?.active !== false;
-
-  await auth.updateUser(uid, { email, displayName: name, disabled: !active });
-  await db.doc(`gameMasters/${uid}`).update({
-    name,
-    email,
-    active,
-    updatedAt: FieldValue.serverTimestamp(),
-  });
-
-  return { uid };
-});
-
-export const deleteGameMasterAccount = onCall(callableOptions, async (request) => {
-  await requireAdmin(request);
-  const uid = assertString(request.data?.uid, "UID", 128);
-  const user = await db.doc(`gameMasters/${uid}`).get()
-  if (user.data['email']) {
-    await auth.updateUser(uid, { disabled: true });
-  }
-  await db.doc(`gameMasters/${uid}`).delete();
-  return { uid };
-});
 
 export const verifyRecaptchaToken = onCall({ ...callableOptions, secrets: [recaptchaSecret] }, async (request) => {
   const recaptchaToken = assertString(request.data?.recaptchaToken, "reCAPTCHA token", 4096);

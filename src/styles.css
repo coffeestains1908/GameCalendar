@@ -619,7 +619,7 @@
   }
 
   .admin-tabs {
-    @apply grid grid-cols-2 rounded-lg border border-[#27303d] bg-[#11151d] p-1;
+    @apply grid grid-cols-3 rounded-lg border border-[#27303d] bg-[#11151d] p-1;
   }
 
   .tab-button {
@@ -653,6 +653,10 @@
 
   .game-entry {
     @apply flex items-center gap-3 rounded-lg border border-[#293447] bg-[#11151d] p-2;
+  }
+
+  .user-entry {
+    @apply flex-wrap;
   }
 
   .game-entry>span:nth-child(2) {

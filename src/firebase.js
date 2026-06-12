@@ -51,19 +51,46 @@ if (auth) {
 
 export async function isAllowedAdmin(user) {
   if (!db || !user?.email) return false;
-  const adminRef = doc(db, 'admins', user.email.toLowerCase());
-  const snapshot = await getDoc(adminRef);
-  return snapshot.exists();
+  try {
+    const userSnapshot = await getDoc(doc(db, 'users', user.uid));
+    if (userSnapshot.exists()) {
+      const profile = userSnapshot.data();
+      return profile.role === 'admin' && profile.active === true;
+    }
+  } catch {
+    // Fall back to the legacy allowlist while rules/functions roll out.
+  }
+  try {
+    const adminRef = doc(db, 'admins', user.email.toLowerCase());
+    const snapshot = await getDoc(adminRef);
+    return snapshot.exists();
+  } catch {
+    return false;
+  }
 }
 
 export async function fetchGameMasterProfile(user) {
   if (db == null) return null;
   if (user?.uid == null) return null;
-  const snapshot = await getDoc(doc(db, 'gameMasters', user.uid));
-  if (snapshot.exists() === false) return null;
+  try {
+    const userSnapshot = await getDoc(doc(db, 'users', user.uid));
+    if (userSnapshot.exists()) {
+      const profile = userSnapshot.data();
+      if (profile.role !== 'gm') return null;
+      return {
+        id: userSnapshot.id,
+        ...profile,
+      };
+    }
+  } catch {
+    // Fall back to the compatibility profile until every deployment includes users/{uid}.
+  }
+  const gameMasterSnapshot = await getDoc(doc(db, 'gameMasters', user.uid));
+  if (gameMasterSnapshot.exists() === false) return null;
   return {
-    id: snapshot.id,
-    ...snapshot.data(),
+    id: gameMasterSnapshot.id,
+    ...gameMasterSnapshot.data(),
+    role: 'gm',
   };
 }
 

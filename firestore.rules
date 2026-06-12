@@ -6,16 +6,43 @@ service cloud.firestore {
       return request.auth.token.email.lower();
     }
 
-    function isAdmin() {
+    function hasManagedProfile() {
+      return request.auth != null
+        && exists(/databases/$(database)/documents/users/$(request.auth.uid));
+    }
+
+    function isManagedAdmin() {
+      return hasManagedProfile()
+        && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == "admin"
+        && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.active == true;
+    }
+
+    function isLegacyAdmin() {
       return request.auth != null
         && request.auth.token.email != null
-        && exists(/databases/$(database)/documents/admins/$(adminEmail()));
+        && exists(/databases/$(database)/documents/admins/$(adminEmail()))
+        && (!hasManagedProfile() || isManagedAdmin());
+    }
+
+    function isAdmin() {
+      return isManagedAdmin() || isLegacyAdmin();
+    }
+
+    function isManagedGameMaster() {
+      return hasManagedProfile()
+        && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == "gm"
+        && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.active == true;
+    }
+
+    function isLegacyGameMaster() {
+      return request.auth != null
+        && exists(/databases/$(database)/documents/gameMasters/$(request.auth.uid))
+        && get(/databases/$(database)/documents/gameMasters/$(request.auth.uid)).data.active == true
+        && (!hasManagedProfile() || isManagedGameMaster());
     }
 
     function isActiveGameMaster() {
-      return request.auth != null
-        && exists(/databases/$(database)/documents/gameMasters/$(request.auth.uid))
-        && get(/databases/$(database)/documents/gameMasters/$(request.auth.uid)).data.active == true;
+      return isManagedGameMaster() || isLegacyGameMaster();
     }
 
     function ownsEvent() {
@@ -166,8 +193,16 @@ service cloud.firestore {
       allow delete: if isAdmin();
     }
 
+    match /users/{userId} {
+      allow get: if isAdmin() || (request.auth != null && request.auth.uid == userId);
+      allow list: if isAdmin();
+      allow create, update, delete: if false;
+    }
+
     match /admins/{adminEmail} {
-      allow read: if request.auth != null && request.auth.token.email.lower() == adminEmail;
+      allow read: if request.auth != null
+        && request.auth.token.email.lower() == adminEmail
+        && (!hasManagedProfile() || isManagedAdmin());
       allow create, update, delete: if isAdmin();
     }
 

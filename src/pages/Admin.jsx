@@ -8,11 +8,14 @@ import {
   Gamepad2,
   Loader2,
   LogOut,
+  Mail,
   Plus,
   RefreshCw,
   Shield,
   Trash2,
+  UserCheck,
   UserRound,
+  UserX,
 } from 'lucide-react';
 import { onAuthStateChanged, signInWithEmailAndPassword, signOut } from 'firebase/auth';
 import { auth, isAllowedAdmin } from '../firebase.js';
@@ -20,21 +23,23 @@ import { toInlineError, toUserError } from '../errors.js';
 import {
   createEvent,
   createGame,
-  createGameMasterAccount,
+  createUserAccount,
+  deleteUserAccount,
   deleteEvent,
   deleteEventPlayer,
   deleteGame,
-  deleteGameMasterAccount,
   fetchAdminEvents,
   fetchEventPlayers,
   fetchEventSecret,
-  fetchGameMasters,
   fetchGames,
+  fetchUsers,
   generateInvitePin,
+  sendUserPasswordReset,
+  setUserDisabled,
   updateEvent,
   updateEventPlayer,
   updateEventPublished,
-  updateGameMasterAccount,
+  updateUserAccount,
   verifyRecaptchaToken,
 } from '../events.js';
 import {
@@ -178,6 +183,7 @@ function AdminDashboard({ user, navigate }) {
   const [events, setEvents] = useState([]);
   const [games, setGames] = useState([]);
   const [gameMasters, setGameMasters] = useState([]);
+  const [managedUsers, setManagedUsers] = useState([]);
   const [editing, setEditing] = useState(null);
   const [form, setForm] = useState(emptyForm);
   const [invitePin, setInvitePin] = useState(generateInvitePin);
@@ -185,8 +191,8 @@ function AdminDashboard({ user, navigate }) {
   const [players, setPlayers] = useState([]);
   const [inviteDetails, setInviteDetails] = useState({});
   const [gameForm, setGameForm] = useState({ name: '', color: '#2f6df6' });
-  const [gmForm, setGmForm] = useState({ uid: '', name: '', email: '', password: '', active: true });
-  const [showGmPassword, setShowGmPassword] = useState(false);
+  const [userForm, setUserForm] = useState({ uid: '', name: '', email: '', role: 'gm', password: '', active: true });
+  const [showUserPassword, setShowUserPassword] = useState(false);
   const [adminTab, setAdminTab] = useState('event');
   const [filters, setFilters] = useState({ search: '', startDate: '', endDate: '' });
   const [loading, setLoading] = useState(true);
@@ -198,10 +204,10 @@ function AdminDashboard({ user, navigate }) {
     setLoading(true);
     setError(null);
     try {
-      const [nextEvents, nextGames, nextGameMasters] = await Promise.all([
+      const [nextEvents, nextGames, nextUsers] = await Promise.all([
         fetchAdminEvents(),
         fetchGames(),
-        fetchGameMasters(),
+        fetchUsers(),
       ]);
       const secretPairs = await Promise.all(
         nextEvents.map(async (event) => {
@@ -218,7 +224,8 @@ function AdminDashboard({ user, navigate }) {
       );
       setEvents(nextEvents);
       setGames(nextGames);
-      setGameMasters(nextGameMasters);
+      setManagedUsers(nextUsers);
+      setGameMasters(nextUsers.filter((entry) => entry.role === 'gm' && entry.active !== false));
       setInviteDetails(Object.fromEntries(secretPairs.filter(([, details]) => details !== null)));
     } catch (err) {
       setError(toUserError(err, 'Could not load admin events'));
@@ -421,58 +428,105 @@ function AdminDashboard({ user, navigate }) {
     }
   };
 
-  const submitGameMaster = async (event) => {
+  const resetUserForm = () => {
+    setUserForm({ uid: '', name: '', email: '', role: 'gm', password: '', active: true });
+    setShowUserPassword(false);
+  };
+
+  const submitManagedUser = async (event) => {
     event.preventDefault();
     setBusy(true);
     setError(null);
     try {
-      if (gmForm.uid) {
-        await updateGameMasterAccount({
-          uid: gmForm.uid,
-          name: gmForm.name.trim(),
-          email: gmForm.email.trim(),
-          active: gmForm.active,
-        });
-      } else {
-        await createGameMasterAccount({
-          name: gmForm.name.trim(),
-          email: gmForm.email.trim(),
-          password: gmForm.password,
-          active: gmForm.active,
-        });
+      const payload = {
+        uid: userForm.uid,
+        name: userForm.name.trim(),
+        email: userForm.email.trim(),
+        role: userForm.role,
+        active: userForm.active,
+      };
+      if (payload.uid === user.uid && (payload.active !== true || payload.role !== 'admin')) {
+        setError({ title: 'Action blocked', detail: 'You cannot remove your own admin access.' });
+        setBusy(false);
+        return;
       }
-      setGmForm({ uid: '', name: '', email: '', password: '', active: true });
-      setShowGmPassword(false);
+      if (userForm.uid) {
+        await updateUserAccount(payload);
+      } else {
+        await createUserAccount({ ...payload, password: userForm.password });
+      }
+      resetUserForm();
       await loadAdminData();
     } catch (err) {
-      setError(toUserError(err, 'Unable to save Game Master'));
+      setError(toUserError(err, 'Unable to save user'));
     } finally {
       setBusy(false);
     }
   };
 
-  const editGameMaster = (gameMaster) => {
-    setGmForm({
-      uid: gameMaster.uid || gameMaster.id,
-      name: gameMaster.name || '',
-      email: gameMaster.email || '',
+  const editManagedUser = (managedUser) => {
+    setUserForm({
+      uid: managedUser.uid || managedUser.id,
+      name: managedUser.name || '',
+      email: managedUser.email || '',
+      role: managedUser.role === 'admin' ? 'admin' : 'gm',
       password: '',
-      active: gameMaster.active !== false,
+      active: managedUser.active !== false,
     });
-    setAdminTab('gameMaster');
+    setAdminTab('user');
   };
 
-  const removeGameMaster = async (gameMaster) => {
-    if (!window.confirm("Disable and remove " + gameMaster.name + "?")) return;
+  const toggleManagedUserDisabled = async (managedUser) => {
+    const uid = managedUser.uid || managedUser.id;
+    if (uid === user.uid) {
+      setError({ title: 'Action blocked', detail: 'You cannot disable or enable your own account here.' });
+      return;
+    }
+    const disabled = managedUser.active !== false;
+    const action = disabled ? 'Disable' : 'Enable';
+    if (!window.confirm(`${action} ${managedUser.name || managedUser.email}?`)) return;
     setBusy(true);
     setError(null);
     try {
-      await deleteGameMasterAccount({ uid: gameMaster.uid || gameMaster.id });
-      setGmForm({ uid: '', name: '', email: '', password: '', active: true });
-      setShowGmPassword(false);
+      await setUserDisabled({ uid, disabled });
+      if (userForm.uid === uid) resetUserForm();
       await loadAdminData();
     } catch (err) {
-      setError(toUserError(err, 'Unable to delete Game Master'));
+      setError(toUserError(err, 'Unable to update user access'));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const resetManagedUserPassword = async (managedUser) => {
+    if (!managedUser.email) return;
+    setBusy(true);
+    setError(null);
+    try {
+      await sendUserPasswordReset(managedUser.email);
+      window.alert(`Password reset email sent to ${managedUser.email}.`);
+    } catch (err) {
+      setError(toUserError(err, 'Unable to send reset email'));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const removeManagedUser = async (managedUser) => {
+    const uid = managedUser.uid || managedUser.id;
+    if (uid === user.uid) {
+      setError({ title: 'Action blocked', detail: 'You cannot delete your own account.' });
+      return;
+    }
+    if (!window.confirm(`Hard-delete ${managedUser.name || managedUser.email}? This removes the Firebase Auth account.`)) return;
+    setBusy(true);
+    setError(null);
+    try {
+      await deleteUserAccount({ uid });
+      if (userForm.uid === uid) resetUserForm();
+      await loadAdminData();
+    } catch (err) {
+      setError(toUserError(err, 'Unable to delete user'));
     } finally {
       setBusy(false);
     }
@@ -606,10 +660,10 @@ function AdminDashboard({ user, navigate }) {
             </button>
             <button
               type="button"
-              className={adminTab === 'gameMaster' ? 'tab-button active' : 'tab-button'}
-              onClick={() => setAdminTab('gameMaster')}
+              className={adminTab === 'user' ? 'tab-button active' : 'tab-button'}
+              onClick={() => setAdminTab('user')}
             >
-              Game Masters
+              Users
             </button>
           </div>
 
@@ -806,73 +860,92 @@ function AdminDashboard({ user, navigate }) {
             </section>
           )}
 
-          {adminTab === 'gameMaster' && (
+          {adminTab === 'user' && (
             <section className="event-form">
               <div className="section-heading">
                 <UserRound size={20} />
-                <h2>{gmForm.uid ? 'Edit Game Master' : 'Create Game Master'}</h2>
+                <h2>{userForm.uid ? 'Edit User' : 'Create User'}</h2>
               </div>
-              <form className="game-entry-form" onSubmit={submitGameMaster}>
+              <form className="game-entry-form" onSubmit={submitManagedUser}>
                 <label>
                   Name
-                  <input value={gmForm.name} onChange={bindForm(setGmForm, 'name')} required />
+                  <input value={userForm.name} onChange={bindForm(setUserForm, 'name')} required />
                 </label>
                 <label>
                   Email
-                  <input value={gmForm.email} onChange={bindForm(setGmForm, 'email')} type="email" required />
+                  <input value={userForm.email} onChange={bindForm(setUserForm, 'email')} type="email" required />
                 </label>
-                {!gmForm.uid && (
+                <label>
+                  Role
+                  <select value={userForm.role} onChange={bindForm(setUserForm, 'role')} required>
+                    <option value="gm">Game Master</option>
+                    <option value="admin">Admin</option>
+                  </select>
+                </label>
+                {!userForm.uid && (
                   <label>
                     Temporary password
                     <div className="password-field">
                       <input
-                        value={gmForm.password}
-                        onChange={bindForm(setGmForm, 'password')}
-                        type={showGmPassword ? 'text' : 'password'}
+                        value={userForm.password}
+                        onChange={bindForm(setUserForm, 'password')}
+                        type={showUserPassword ? 'text' : 'password'}
                         minLength={6}
                         required
                       />
                       <button
                         className="icon-button"
                         type="button"
-                        onClick={() => setShowGmPassword((current) => !current)}
-                        title={showGmPassword ? 'Hide password' : 'Show password'}
+                        onClick={() => setShowUserPassword((current) => !current)}
+                        title={showUserPassword ? 'Hide password' : 'Show password'}
                       >
-                        {showGmPassword ? <EyeOff size={17} /> : <Eye size={17} />}
+                        {showUserPassword ? <EyeOff size={17} /> : <Eye size={17} />}
                       </button>
                     </div>
                   </label>
                 )}
                 <label className="toggle-row">
-                  <input type="checkbox" checked={gmForm.active} onChange={(event) => setGmForm((current) => ({ ...current, active: event.target.checked }))} />
+                  <input type="checkbox" checked={userForm.active} onChange={(event) => setUserForm((current) => ({ ...current, active: event.target.checked }))} />
                   Active
                 </label>
                 <div className="form-actions">
-                  {gmForm.uid && (
-                    <button className="button secondary" type="button" onClick={() => { setGmForm({ uid: '', name: '', email: '', password: '', active: true }); setShowGmPassword(false); }}>
+                  {userForm.uid && (
+                    <button className="button secondary" type="button" onClick={resetUserForm}>
                       Cancel
                     </button>
                   )}
                   <button className="button" type="submit" disabled={busy}>
                     {busy ? <Loader2 className="spin" size={17} /> : <CheckCircle2 size={17} />}
-                    {gmForm.uid ? 'Save Game Master' : 'Create Login'}
+                    {userForm.uid ? 'Save User' : 'Create Login'}
                   </button>
                 </div>
               </form>
               <div className="game-list">
-                {gameMasters.length === 0 && <p>No Game Masters yet.</p>}
-                {gameMasters.map((gameMaster) => (
-                  <article className="game-entry" key={gameMaster.uid || gameMaster.id}>
-                    <span className="status-dot" />
-                    <span>{gameMaster.name} {gameMaster.email ? " / " + gameMaster.email : ""}</span>
-                    <button className="icon-button" type="button" onClick={() => editGameMaster(gameMaster)} title="Edit Game Master">
+                {managedUsers.length === 0 && <p>No managed users yet.</p>}
+                {managedUsers.map((managedUser) => {
+                  const uid = managedUser.uid || managedUser.id;
+                  const isCurrentUser = uid === user.uid;
+                  const roleLabel = managedUser.role === 'admin' ? 'Admin' : 'GM';
+                  const accessTitle = managedUser.active === false ? 'Enable user' : 'Disable user';
+                  return (
+                  <article className="game-entry user-entry" key={uid}>
+                    <span className={managedUser.active === false ? 'status-dot ended' : 'status-dot ongoing'} />
+                    <span>{managedUser.name || 'Unnamed'} / {managedUser.email || 'No email'} / {roleLabel}{managedUser.legacy ? ' / Legacy' : ''}</span>
+                    <button className="icon-button" type="button" onClick={() => editManagedUser(managedUser)} title="Edit user">
                       <Edit3 size={17} />
                     </button>
-                    <button className="icon-button danger" type="button" onClick={() => removeGameMaster(gameMaster)} title="Delete Game Master">
+                    <button className="icon-button" type="button" onClick={() => resetManagedUserPassword(managedUser)} title="Send password reset email" disabled={!managedUser.email || busy}>
+                      <Mail size={17} />
+                    </button>
+                    <button className="icon-button" type="button" onClick={() => toggleManagedUserDisabled(managedUser)} title={accessTitle} disabled={isCurrentUser || busy}>
+                      {managedUser.active === false ? <UserCheck size={17} /> : <UserX size={17} />}
+                    </button>
+                    <button className="icon-button danger" type="button" onClick={() => removeManagedUser(managedUser)} title="Hard-delete user" disabled={isCurrentUser || busy}>
                       <Trash2 size={17} />
                     </button>
                   </article>
-                ))}
+                  );
+                })}
               </div>
             </section>
           )}

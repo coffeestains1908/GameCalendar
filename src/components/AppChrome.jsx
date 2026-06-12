@@ -250,7 +250,7 @@ export function CreditFooter() {
   return (
     <div className="public-footer-stack">
       <footer className="public-footer">
-        <strong>v1.0.3</strong>
+        <strong>v1.0.4</strong>
         <span>Created and maintained by Danish</span>
       </footer>
 

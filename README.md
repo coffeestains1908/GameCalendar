@@ -171,9 +171,9 @@ firebase deploy --only hosting,functions
 - `updateUserAccount`: admin-only; updates Firebase Auth user, `users/{uid}` profile, and role compatibility documents.
 - `setUserDisabled`: admin-only; disables or enables Firebase Auth access and app role access.
 - `deleteUserAccount`: admin-only; hard-deletes the Firebase Auth user and removes user/role profile documents.
-- `createGameMasterAccount`: admin-only; creates Firebase Auth user and `gameMasters/{uid}` profile.
-- `updateGameMasterAccount`: admin-only; updates GM profile and Auth account.
-- `deleteGameMasterAccount`: admin-only; disables Auth account and removes the GM profile.
+- `createGameMasterAccount`: compatibility wrapper for creating a GM through the managed-user flow.
+- `updateGameMasterAccount`: compatibility wrapper for updating a GM through the managed-user flow.
+- `deleteGameMasterAccount`: compatibility wrapper that disables Auth access and removes GM user/profile documents.
 - `joinEvent`: public callable; validates event ID, player name, published/invite state, 6-digit PIN, and reCAPTCHA v3 token before adding a joined player.
 - `verifyRecaptchaToken`: public callable; verifies reCAPTCHA v3 tokens for admin and GM login attempts before Firebase email/password sign-in.
 
