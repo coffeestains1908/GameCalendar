@@ -3,6 +3,8 @@ import { Gamepad2 } from 'lucide-react';
 
 import githubIcon from '../assets/icons/GitHub_Invertocat_White.svg';
 
+const appVersion = import.meta.env.VITE_APP_VERSION;
+
 export function StarWarpBackground() {
   const canvasRef = useRef(null);
   const warpDurationMin = 5000
@@ -27,6 +29,9 @@ export function StarWarpBackground() {
     let hyperspaceEnd = 0;
     let hyperspaceEndTimeout = 0;
     const hyperspaceFlashDuration = 720;
+    const pivotVoidRadius = 34;
+    const pivotVoidHyperspaceExpansion = 22;
+    const pivotVoidFeather = 42;
 
     const randomBetween = (min, max) => min + Math.random() * (max - min);
     const easeInOut = (value) => value * value * (3 - 2 * value);
@@ -138,6 +143,27 @@ export function StarWarpBackground() {
       context.fill();
     };
 
+    const drawPivotVoid = (hyperspaceAmount) => {
+      const radius = pivotVoidRadius + hyperspaceAmount * pivotVoidHyperspaceExpansion;
+      const featheredRadius = radius + pivotVoidFeather;
+      const gradient = context.createRadialGradient(
+        center.x,
+        center.y,
+        radius * 0.2,
+        center.x,
+        center.y,
+        featheredRadius,
+      );
+      gradient.addColorStop(0, 'rgba(5, 7, 11, 0.96)');
+      gradient.addColorStop(0.48, 'rgba(5, 7, 11, 0.82)');
+      gradient.addColorStop(1, 'rgba(5, 7, 11, 0)');
+
+      context.fillStyle = gradient;
+      context.beginPath();
+      context.arc(center.x, center.y, featheredRadius, 0, Math.PI * 2);
+      context.fill();
+    };
+
     const render = (time) => {
       const deltaSeconds = Math.min((time - lastTime) / 1000, 0.05);
       const elapsedSeconds = time / 1000;
@@ -149,6 +175,7 @@ export function StarWarpBackground() {
       context.globalCompositeOperation = 'screen';
       stars.forEach((star) => drawStar(star, elapsedSeconds, deltaSeconds, hyperspaceAmount));
       context.globalCompositeOperation = 'source-over';
+      drawPivotVoid(hyperspaceAmount);
       if (hyperspaceFlashAmount > 0) {
         context.fillStyle = "rgba(181, 220, 255, " + hyperspaceFlashAmount + ")";
         context.fillRect(0, 0, width, height);
@@ -250,7 +277,7 @@ export function CreditFooter() {
   return (
     <div className="public-footer-stack">
       <footer className="public-footer">
-        <strong>v1.0.3</strong>
+        <strong>v{appVersion}</strong>
         <span>Created and maintained by Danish</span>
       </footer>
 

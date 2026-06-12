@@ -25,7 +25,6 @@ import { fetchPublicEvents } from '../events.js';
 import {
   addDaysToDateKey,
   dateKeyToMalaysiaDate,
-  dateToMinutes,
   formatCompactDate,
   formatDateKey,
   formatDayLabel,
@@ -34,6 +33,7 @@ import {
   formatWeekdayLabel,
   gameColor,
   MALAYSIA_TIME_ZONE,
+  splitEventIntoDateSegments,
 } from '../time.js';
 import { StatePanel, WarpChargeIndicator } from '../components/AppChrome.jsx';
 import { buildGoogleCalendarUrl, EventDetails } from './EventInfoPage.jsx';
@@ -49,8 +49,12 @@ function getRandomQuote() {
 
 const titleText = 'ChRonoC0deX';
 const matrixGlyphs = 'アイウエオカキクケコサシスセソタチツテト0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ';
-const MINUTES_PER_DAY = 24 * 60;
 const MS_PER_DAY = 24 * 60 * 60 * 1000;
+const EVENT_BAR_MIN_HEIGHT = 86;
+const EVENT_BAR_GAP = 18;
+const EVENT_BAR_TOP_OFFSET = 12;
+const EVENT_TITLE_CHARS_PER_LINE = 23;
+const EVENT_TITLE_LINE_HEIGHT = 16;
 
 function getTypingErrorGlyph(expectedCharacter) {
   let glyph = matrixGlyphs[Math.floor(Math.random() * matrixGlyphs.length)];
@@ -280,7 +284,7 @@ export function PublicCalendar({ navigate }) {
             className="calendar-timeline"
             style={{
               '--column-count': calendarLayout.columns.length,
-              '--lane-count': calendarLayout.laneCount,
+              '--timeline-height': `${calendarLayout.timelineHeight}px`,
             }}
           >
             <div className="calendar-columns">
@@ -297,7 +301,7 @@ export function PublicCalendar({ navigate }) {
                 <EventBar
                   active={activeSegment?.key === eventBar.event.id}
                   eventBar={eventBar}
-                  key={eventBar.event.id}
+                  key={eventBar.key}
                   onToggle={togglePopover}
                 />
               ))}
@@ -461,8 +465,10 @@ function DateTimeline({ dateKey, isToday }) {
 }
 
 function EventBar({ active, eventBar, onToggle }) {
-  const { event, lane, leftDays, widthDays } = eventBar;
+  const { event, leftDays, topPx, heightPx, fillLeftPercent, fillWidthPercent } = eventBar;
   const colors = segmentColors(event);
+  const quickTime = `${formatSegmentTime(event.segmentStart || event.startAt)} - ${formatSegmentTime(event.segmentEnd || event.endAt)}`;
+  const eventMeta = [quickTime, event.gameMaster].filter(Boolean).join(' • ');
 
   return (
     <button
@@ -472,17 +478,27 @@ function EventBar({ active, eventBar, onToggle }) {
       aria-expanded={active}
       title={event.title + " / " + formatTime(event.startAt) + "-" + formatTime(event.endAt)}
       style={{
-        "--event-lane": lane,
+        "--event-top": `${topPx}px`,
+        "--event-min-height": `${heightPx}px`,
+        "--fill-left": fillLeftPercent + "%",
+        "--fill-width": fillWidthPercent + "%",
         left: "calc(var(--day-width) * " + leftDays + ")",
-        width: "max(1.5rem, calc(var(--day-width) * " + widthDays + "))",
-        background: colors.background,
+        width: "var(--day-width)",
+        background: "color-mix(in srgb, " + colors.background + " 18%, #11151d)",
         borderColor: colors.border,
         boxShadow: "0 0 24px " + colors.glow,
       }}
     >
+      <span
+        className="event-bar-fill"
+        style={{ background: colors.background }}
+        aria-hidden="true"
+      />
       <span className="event-label">
-        <span className="event-title">{truncateEventTitle(event.title)}</span>
-        <small>{event.game}{event.inviteEnabled === true ? " / " + formatPlayerCount(event.playerCount || 0) : ""}</small>
+        <span className="event-game">{event.game}</span>
+        <span className="event-title">{event.title}</span>
+        <span className="event-meta">{eventMeta}</span>
+        {event.location && <span className="event-location">📍{event.location}</span>}
       </span>
     </button>
   );
@@ -585,43 +601,51 @@ function buildCalendarLayout(events) {
   }
 
   const eventBars = layoutEventBars(events, startKey, columns.length);
-  const laneCount = Math.max(1, eventBars.reduce((count, eventBar) => Math.max(count, eventBar.lane + 1), 0));
+  const timelineHeight = Math.max(
+    EVENT_BAR_MIN_HEIGHT + EVENT_BAR_TOP_OFFSET + EVENT_BAR_GAP,
+    eventBars.reduce((height, eventBar) => Math.max(height, eventBar.topPx + eventBar.heightPx + EVENT_BAR_GAP), 0),
+  );
 
-  return { columns, eventBars, laneCount };
+  return { columns, eventBars, timelineHeight };
 }
 
 function layoutEventBars(events, startKey, columnCount) {
   const visibleStart = dateKeyToMalaysiaDate(startKey);
   const visibleEnd = dateKeyToMalaysiaDate(addDaysToDateKey(startKey, columnCount));
+  const visibleEndKey = addDaysToDateKey(startKey, columnCount);
   const positionedEvents = events
     .filter((event) => event.startAt && event.endAt && event.endAt > event.startAt)
     .filter((event) => event.endAt > visibleStart && event.startAt < visibleEnd)
-    .map((event) => {
-      const rawStart = dayOffset(startKey, formatDateKey(event.startAt)) + dateToMinutes(event.startAt) / MINUTES_PER_DAY;
-      const rawEnd = dayOffset(startKey, formatDateKey(event.endAt)) + dateToMinutes(event.endAt) / MINUTES_PER_DAY;
-      const leftDays = Math.max(0, rawStart);
-      const endDays = Math.min(columnCount, rawEnd);
-
-      return {
-        event,
-        leftDays,
-        widthDays: Math.max(endDays - leftDays, 0.01),
-        sortStart: Math.max(visibleStart.getTime(), event.startAt.getTime()),
-        sortEnd: Math.min(visibleEnd.getTime(), event.endAt.getTime()),
-      };
-    })
+    .flatMap((event) => splitEventIntoDateSegments(event))
+    .filter((segment) => segment.segmentDateKey >= startKey && segment.segmentDateKey < visibleEndKey)
+    .map((segment) => ({
+      event: segment,
+      key: `${segment.id}-${segment.segmentDateKey}`,
+      leftDays: dayOffset(startKey, segment.segmentDateKey),
+      fillLeftPercent: segment.leftPercent,
+      fillWidthPercent: segment.widthPercent,
+      sortStart: Math.max(visibleStart.getTime(), segment.segmentStart.getTime()),
+      sortEnd: Math.min(visibleEnd.getTime(), segment.segmentEnd.getTime()),
+    }))
     .sort((a, b) => {
+      if (a.event.segmentDateKey !== b.event.segmentDateKey) {
+        return a.event.segmentDateKey.localeCompare(b.event.segmentDateKey);
+      }
       if (a.sortStart !== b.sortStart) return a.sortStart - b.sortStart;
       if (a.sortEnd !== b.sortEnd) return a.sortEnd - b.sortEnd;
       return a.event.title.localeCompare(b.event.title);
     });
 
-  const laneEnds = [];
+  const dayHeights = new Map();
   return positionedEvents.map((entry) => {
-    const lane = laneEnds.findIndex((end) => end <= entry.sortStart);
-    const nextLane = lane === -1 ? laneEnds.length : lane;
-    laneEnds[nextLane] = entry.sortEnd;
-    return { ...entry, lane: nextLane };
+    const currentHeight = dayHeights.get(entry.event.segmentDateKey) || 0;
+    const heightPx = estimateEventBarHeight(entry.event);
+    dayHeights.set(entry.event.segmentDateKey, currentHeight + heightPx + EVENT_BAR_GAP);
+    return {
+      ...entry,
+      topPx: EVENT_BAR_TOP_OFFSET + currentHeight,
+      heightPx,
+    };
   });
 }
 
@@ -633,9 +657,22 @@ function formatPlayerCount(count) {
   return count + " " + (count === 1 ? "player" : "players") + " joining";
 }
 
-function truncateEventTitle(title) {
-  if (title.length <= 15) return title;
-  return `${title.slice(0, 12)}...`;
+function formatSegmentTime(date) {
+  const parts = new Intl.DateTimeFormat('en-MY', {
+    timeZone: MALAYSIA_TIME_ZONE,
+    hour: 'numeric',
+    minute: '2-digit',
+    hour12: true,
+  }).formatToParts(date);
+  const hour = parts.find((part) => part.type === 'hour')?.value || '';
+  const minute = parts.find((part) => part.type === 'minute')?.value || '00';
+  const dayPeriod = (parts.find((part) => part.type === 'dayPeriod')?.value || '').toLowerCase();
+  return minute === '00' ? `${hour}${dayPeriod}` : `${hour}.${minute}${dayPeriod}`;
+}
+
+function estimateEventBarHeight(event) {
+  const titleLines = Math.max(1, Math.ceil((event.title || '').length / EVENT_TITLE_CHARS_PER_LINE));
+  return EVENT_BAR_MIN_HEIGHT + Math.max(0, titleLines - 2) * EVENT_TITLE_LINE_HEIGHT;
 }
 
 function segmentColors(segment) {
