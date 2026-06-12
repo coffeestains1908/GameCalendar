@@ -1,20 +1,66 @@
-import { toInputDate } from '../time.js';
+import {
+  dateKeyToMalaysiaDate,
+  formatCompactDate,
+  malaysiaInputToDate,
+  toInputDate,
+  toInputTime,
+} from '../time.js';
 
-export const emptyForm = {
-  title: '',
-  gameMaster: '',
-  gameMasterUid: '',
-  game: '',
-  gameColor: '#2f6df6',
-  location: '',
-  description: '',
-  date: toInputDate(new Date()),
-  startTime: '20:00',
-  endDate: toInputDate(new Date()),
-  endTime: '22:00',
-  published: true,
-  inviteEnabled: false,
-};
+const MS_PER_MINUTE = 60 * 1000;
+const MINUTES_PER_DAY = 24 * 60;
+
+export const EVENT_DATE_MODE_SINGLE = 'single';
+export const EVENT_DATE_MODE_RANGE = 'range';
+
+export function createEmptyEventForm() {
+  const today = toInputDate(new Date());
+  return {
+    title: '',
+    gameMaster: '',
+    gameMasterUid: '',
+    game: '',
+    gameColor: '#2f6df6',
+    location: '',
+    description: '',
+    dateMode: EVENT_DATE_MODE_SINGLE,
+    dateRange: { from: today, to: today },
+    startTime: '20:00',
+    durationMinutes: 240,
+    published: true,
+    inviteEnabled: false,
+  };
+}
+
+export const emptyForm = createEmptyEventForm();
+
+export function eventToForm(event, games = []) {
+  const matchingGame = games.find((game) => game.name === event.game);
+  const startDate = toInputDate(event.startAt);
+  const endDate = toInputDate(event.endAt);
+  const durationMinutes = Math.max(1, Math.round((event.endAt - event.startAt) / MS_PER_MINUTE));
+  return {
+    title: event.title || '',
+    gameMaster: event.gameMaster || '',
+    gameMasterUid: event.gameMasterUid || '',
+    game: event.game || '',
+    gameColor: event.gameColor || matchingGame?.color || '#2f6df6',
+    location: event.location || '',
+    description: event.description || '',
+    dateMode: startDate === endDate ? EVENT_DATE_MODE_SINGLE : EVENT_DATE_MODE_RANGE,
+    dateRange: { from: startDate, to: endDate },
+    startTime: toInputTime(event.startAt),
+    durationMinutes,
+    published: Boolean(event.published),
+    inviteEnabled: event.inviteEnabled === true,
+  };
+}
+
+export function duplicateEventToForm(event, games = []) {
+  return {
+    ...eventToForm(event, games),
+    title: `${event.title || 'Event'} Copy`,
+  };
+}
 
 export function bindForm(setForm, key) {
   return (event) => setForm((current) => ({ ...current, [key]: event.target.value }));
@@ -29,13 +75,178 @@ export function selectGame(setForm, games, gameName) {
   }));
 }
 
-export function syncStartDate(setForm) {
-  return (event) => {
-    const value = event.target.value;
-    setForm((current) => ({
+export function setEventDateMode(setForm, dateMode) {
+  setForm((current) => {
+    const from = current.dateRange.from || toInputDate(new Date());
+    return {
       ...current,
-      date: value,
-      endDate: current.endDate < value ? value : current.endDate,
-    }));
+      dateMode,
+      dateRange: {
+        from,
+        to: dateMode === EVENT_DATE_MODE_SINGLE
+          ? from
+          : current.dateMode === EVENT_DATE_MODE_RANGE
+            ? current.dateRange.to
+            : '',
+      },
+    };
+  });
+}
+
+export function dayPickerSelection(form) {
+  const from = form.dateRange.from ? dateKeyToMalaysiaDate(form.dateRange.from) : undefined;
+  const to = form.dateRange.to ? dateKeyToMalaysiaDate(form.dateRange.to) : undefined;
+  return form.dateMode === EVENT_DATE_MODE_RANGE ? { from, to } : from;
+}
+
+export function setEventDateSelection(setForm, selection) {
+  setForm((current) => {
+    if (current.dateMode === EVENT_DATE_MODE_RANGE) {
+      const from = selection?.from ? toInputDate(selection.from) : '';
+      const to = selection?.to ? toInputDate(selection.to) : '';
+      const previousDaySpan = daySpan(current.dateRange.from, current.dateRange.to);
+      const nextDaySpan = daySpan(from, to);
+      const baseMinutes = Math.max(1, current.durationMinutes - previousDaySpan * MINUTES_PER_DAY);
+      return {
+        ...current,
+        dateRange: { from, to },
+        durationMinutes: to ? nextDaySpan * MINUTES_PER_DAY + baseMinutes : current.durationMinutes,
+      };
+    }
+
+    const date = selection ? toInputDate(selection) : '';
+    return {
+      ...current,
+      dateRange: { from: date, to: date },
+    };
+  });
+}
+
+export function setEventRangeSelection(setForm, clickedDate, rangeStep) {
+  const clickedKey = toInputDate(clickedDate);
+  let nextStep = rangeStep;
+
+  setForm((current) => {
+    const rangeComplete = Boolean(current.dateRange.from && current.dateRange.to);
+    if (rangeStep === 'start' || rangeComplete || !current.dateRange.from) {
+      nextStep = 'end';
+      return {
+        ...current,
+        dateRange: { from: clickedKey, to: '' },
+      };
+    }
+
+    if (clickedKey < current.dateRange.from) {
+      nextStep = 'end';
+      return {
+        ...current,
+        dateRange: { from: clickedKey, to: '' },
+      };
+    }
+
+    const previousDaySpan = daySpan(current.dateRange.from, current.dateRange.to);
+    const nextDaySpan = daySpan(current.dateRange.from, clickedKey);
+    const baseMinutes = Math.max(1, current.durationMinutes - previousDaySpan * MINUTES_PER_DAY);
+    nextStep = 'start';
+    return {
+      ...current,
+      dateRange: { from: current.dateRange.from, to: clickedKey },
+      durationMinutes: nextDaySpan * MINUTES_PER_DAY + baseMinutes,
+    };
+  });
+
+  return nextStep;
+}
+
+export function durationToParts(durationMinutes) {
+  const value = Math.max(0, Number(durationMinutes) || 0);
+  return {
+    hours: Math.floor(value / 60),
+    minutes: value % 60,
   };
+}
+
+export function durationPartsToMinutes(hours, minutes) {
+  return Math.max(0, Math.floor(Number(hours) || 0)) * 60 + clampMinutes(minutes);
+}
+
+export function updateDurationPart(setForm, key, value) {
+  setForm((current) => {
+    const parts = durationToParts(current.durationMinutes);
+    const nextParts = {
+      ...parts,
+      [key]: key === 'minutes' ? clampMinutes(value) : Math.max(0, Math.floor(Number(value) || 0)),
+    };
+    const durationMinutes = durationPartsToMinutes(nextParts.hours, nextParts.minutes);
+    return {
+      ...current,
+      durationMinutes,
+      dateRange: {
+        ...current.dateRange,
+        to: current.dateRange.from
+          ? toInputDate(new Date(malaysiaInputToDate(current.dateRange.from, current.startTime).getTime() + durationMinutes * MS_PER_MINUTE))
+          : current.dateRange.to,
+      },
+    };
+  });
+}
+
+export function buildEventSchedule(form) {
+  if (!form.dateRange.from) {
+    return {
+      error: {
+        title: 'Pick an event date',
+        detail: 'Choose the date this event starts.',
+      },
+    };
+  }
+
+  if (form.dateMode === EVENT_DATE_MODE_RANGE && !form.dateRange.to) {
+    return {
+      error: {
+        title: 'Pick an end date',
+        detail: 'Choose the last date in the event range.',
+      },
+    };
+  }
+
+  if (Number(form.durationMinutes) <= 0) {
+    return {
+      error: {
+        title: 'Invalid event duration',
+        detail: 'Duration must be greater than 0 minutes.',
+      },
+    };
+  }
+
+  const startAt = malaysiaInputToDate(form.dateRange.from, form.startTime);
+  const endAt = new Date(startAt.getTime() + Number(form.durationMinutes) * MS_PER_MINUTE);
+  if (endAt <= startAt) {
+    return {
+      error: {
+        title: 'Invalid event time',
+        detail: 'Duration must end after the start date and time.',
+      },
+    };
+  }
+
+  return { startAt, endAt };
+}
+
+export function formatSelectedDateRange(form) {
+  if (!form.dateRange.from) return 'No date selected';
+  const from = formatCompactDate(dateKeyToMalaysiaDate(form.dateRange.from));
+  if (form.dateMode === EVENT_DATE_MODE_SINGLE || !form.dateRange.to || form.dateRange.to === form.dateRange.from) {
+    return from;
+  }
+  return `${from} - ${formatCompactDate(dateKeyToMalaysiaDate(form.dateRange.to))}`;
+}
+
+function daySpan(from, to) {
+  if (!from || !to) return 0;
+  return Math.max(0, Math.round((dateKeyToMalaysiaDate(to) - dateKeyToMalaysiaDate(from)) / (MINUTES_PER_DAY * MS_PER_MINUTE)));
+}
+
+function clampMinutes(value) {
+  return Math.min(59, Math.max(0, Math.floor(Number(value) || 0)));
 }

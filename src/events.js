@@ -168,6 +168,10 @@ export async function updateEvent(id, payload, options = {}) {
   }
 }
 
+export async function deleteEventSecret(id) {
+  return deleteDoc(eventSecretDoc(id));
+}
+
 export async function updateEventPublished(id, published) {
   return updateDoc(doc(db, 'events', id), {
     published,
