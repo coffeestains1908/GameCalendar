@@ -12,6 +12,10 @@ const db = getFirestore();
 const auth = getAuth();
 const recaptchaSecret = defineSecret("RECAPTCHA_SECRET_KEY");
 const callableOptions = { cors: true };
+const DEFAULT_MAX_PLAYERS = 5;
+const MIN_MAX_PLAYERS = 1;
+const MAX_MAX_PLAYERS = 24;
+const PLAYER_LIMIT_EXCEEDED_MESSAGE = "Player limit exceeded. Please contact your Game Master";
 
 function assertString(value, field, maxLength) {
   if (typeof value !== "string") {
@@ -22,6 +26,14 @@ function assertString(value, field, maxLength) {
     throw new HttpsError("invalid-argument", `${field} is invalid.`);
   }
   return trimmed;
+}
+
+function normalizeMaxPlayers(value) {
+  const numberValue = Number(value);
+  if (!Number.isInteger(numberValue) || numberValue < MIN_MAX_PLAYERS || numberValue > MAX_MAX_PLAYERS) {
+    return DEFAULT_MAX_PLAYERS;
+  }
+  return numberValue;
 }
 
 async function requireAdmin(request) {
@@ -133,22 +145,35 @@ export const joinEvent = onCall({ ...callableOptions, secrets: [recaptchaSecret]
 
   const eventRef = db.doc(`events/${eventId}`);
   const secretRef = db.doc(`eventSecrets/${eventId}`);
-  const [eventSnapshot, secretSnapshot] = await Promise.all([eventRef.get(), secretRef.get()]);
-  if (!eventSnapshot.exists) throw new HttpsError("not-found", "Event not found.");
-  const event = eventSnapshot.data();
-  if (event.published !== true || event.inviteEnabled !== true) {
-    throw new HttpsError("failed-precondition", "This event is not accepting joins.");
-  }
-  if (!secretSnapshot.exists || secretSnapshot.data().pin !== pin) {
-    throw new HttpsError("permission-denied", "Incorrect event PIN.");
-  }
-
   const playerRef = eventRef.collection("players").doc();
-  await playerRef.set({
-    name,
-    joinedAt: FieldValue.serverTimestamp(),
-    joinedBy: "invite",
+  const playerId = await db.runTransaction(async (transaction) => {
+    const [eventSnapshot, secretSnapshot, playersSnapshot] = await Promise.all([
+      transaction.get(eventRef),
+      transaction.get(secretRef),
+      transaction.get(eventRef.collection("players")),
+    ]);
+
+    if (!eventSnapshot.exists) throw new HttpsError("not-found", "Event not found.");
+    const event = eventSnapshot.data();
+    if (event.published !== true || event.inviteEnabled !== true) {
+      throw new HttpsError("failed-precondition", "This event is not accepting joins.");
+    }
+    if (!secretSnapshot.exists || secretSnapshot.data().pin !== pin) {
+      throw new HttpsError("permission-denied", "Incorrect event PIN.");
+    }
+
+    const maxPlayers = normalizeMaxPlayers(event.maxPlayers);
+    if (playersSnapshot.size >= maxPlayers) {
+      throw new HttpsError("out-of-range", PLAYER_LIMIT_EXCEEDED_MESSAGE);
+    }
+
+    transaction.set(playerRef, {
+      name,
+      joinedAt: FieldValue.serverTimestamp(),
+      joinedBy: "invite",
+    });
+    return playerRef.id;
   });
 
-  return { playerId: playerRef.id };
+  return { playerId };
 });

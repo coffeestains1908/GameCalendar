@@ -44,6 +44,7 @@ import {
 } from '../shared/forms.js';
 import { EventScheduleFields } from '../shared/EventScheduleFields.jsx';
 import { InvitePanel, PublishedSwitch } from '../shared/EventFormControls.jsx';
+import { normalizeMaxPlayers } from '../playerLimits.js';
 
 export function GameMasterView({ navigate }) {
   const [user, setUser] = useState(null);
@@ -174,7 +175,7 @@ function GameMasterDashboard({ user, profile, navigate }) {
     event.preventDefault(); setBusy(true); setError(null);
     const schedule = buildEventSchedule(form);
     if (schedule.error) { setError(schedule.error); setBusy(false); return; }
-    const payload = { title: form.title.trim(), gameMaster: profile.name, gameMasterUid: user.uid, createdBy: user.uid, inviteEnabled: form.inviteEnabled, game: form.game.trim(), gameColor: form.gameColor, location: form.location.trim(), description: form.description.trim(), startAt: schedule.startAt, endAt: schedule.endAt, published: form.published };
+    const payload = { title: form.title.trim(), gameMaster: profile.name, gameMasterUid: user.uid, createdBy: user.uid, inviteEnabled: form.inviteEnabled, ...(form.inviteEnabled ? { maxPlayers: normalizeMaxPlayers(form.maxPlayers) } : {}), game: form.game.trim(), gameColor: form.gameColor, location: form.location.trim(), description: form.description.trim(), startAt: schedule.startAt, endAt: schedule.endAt, published: form.published };
     try {
       const inviteOptions = form.inviteEnabled && invitePin ? { invitePin } : {};
       if (editing) {
@@ -213,8 +214,32 @@ function GameMasterDashboard({ user, profile, navigate }) {
   return (
     <main className="app-shell admin-shell">
       <header className="topbar"><div><p className="eyebrow">Signed in as {profile.name}</p><h1>GM Events</h1></div><div className="topbar-actions"><button className="button secondary" type="button" onClick={() => navigate("/")}><Eye size={17} />Public</button><button className="icon-button" type="button" onClick={loadGmData} title="Refresh events"><RefreshCw size={18} /></button><button className="button secondary" type="button" onClick={() => signOut(auth)}><LogOut size={17} />Sign out</button></div></header>
-      <section className="admin-layout"><section className="admin-list gm-event-list"><div className="section-heading"><CalendarDays size={20} /><h2>My events</h2></div><div className="admin-event-scroll">{loading && <StatePanel icon={<Loader2 className="spin" />} title="Loading events" />}{!loading && error && <StatePanel icon={<CalendarDays />} title={error.title} detail={error.detail} />}{!loading && !error && events.length === 0 && <StatePanel icon={<CalendarDays />} title="No events yet" />}{!loading && !error && <AdminEventList events={paginatedEvents} inviteDetails={inviteDetails} renderActions={(event) => <><button className="icon-button" type="button" onClick={() => editGmEvent(event)} title="Edit event"><Edit3 size={17} /></button><button className="icon-button danger" type="button" onClick={() => remove(event)} title="Delete event"><Trash2 size={17} /></button></>} />}</div>{!loading && !error && <EventListPagination page={eventPage} pageCount={eventPageCount} totalEvents={events.length} onPageChange={changeEventPage} />}</section>
-        <section className="admin-tools gm-tools"><div className="admin-tab-panels"><form className="event-form" onSubmit={submit}><div className="form-title-row"><div className="section-heading"><Plus size={20} /><div><p className="eyebrow">{editing ? "Editing event" : "Creating new event"}</p><h2>{editing ? form.title || "Edit event" : "Create event"}</h2></div></div>{editing && <span className="mode-chip">Existing event</span>}</div><label>Title<input value={form.title} onChange={bindForm(setForm, "title")} required /></label><label>Game<select value={form.game} onChange={(event) => selectGame(setForm, games, event.target.value)} required><option value="">Select a game</option>{form.game && !games.some((game) => game.name === form.game) && <option value={form.game}>{form.game}</option>}{games.map((game) => <option value={game.name} key={game.id}>{game.name}</option>)}</select></label><label>Location<input value={form.location} onChange={bindForm(setForm, "location")} required /></label><label>Description<textarea value={form.description} onChange={bindForm(setForm, "description")} rows="2" required /></label><EventScheduleFields form={form} setForm={setForm} /><PublishedSwitch checked={form.published} setForm={setForm} /><InvitePanel editing={Boolean(editing)} form={form} generateInvitePin={generateInvitePin} invitePin={invitePin} setForm={setForm} setInvitePin={setInvitePin} shareUrl={shareUrl} />{error && <FormError title={error.title} detail={error.detail} actionUrl={error.actionUrl} actionLabel="Open Firebase index" />}<div className="form-actions">{editing && <button className="button secondary" type="button" onClick={resetGmForm}>Cancel edit</button>}<button className="button" type="submit" disabled={busy}>{busy ? <Loader2 className="spin" size={17} /> : <CheckCircle2 size={17} />}{editing ? "Save changes" : "Create event"}</button></div></form>{editing && <section className="event-form"><div className="section-heading"><UserRound size={20} /><h2>Joined players</h2></div><div className="game-list">{players.length === 0 && <p>No players have joined yet.</p>}{players.map((player) => <article className="game-entry" key={player.id}><span className="status-dot" /><span>{player.name}</span><button className="icon-button" type="button" onClick={() => savePlayer(player)} title="Edit player"><Edit3 size={17} /></button><button className="icon-button danger" type="button" onClick={() => removePlayer(player)} title="Delete player"><Trash2 size={17} /></button></article>)}</div></section>}</div></section></section>
+      <section className="admin-layout">
+        <section className="admin-list gm-event-list">
+          <div className="section-heading"><CalendarDays size={20} /><h2>My events</h2></div>
+          <div className="admin-event-scroll">{loading && <StatePanel icon={<Loader2 className="spin" />} title="Loading events" />}{!loading && error && <StatePanel icon={<CalendarDays />} title={error.title} detail={error.detail} />}{!loading && !error && events.length === 0 && <StatePanel icon={<CalendarDays />} title="No events yet" />}{!loading && !error && <AdminEventList events={paginatedEvents} inviteDetails={inviteDetails} renderActions={(event) => <><button className="icon-button" type="button" onClick={() => editGmEvent(event)} title="Edit event"><Edit3 size={17} /></button><button className="icon-button danger" type="button" onClick={() => remove(event)} title="Delete event"><Trash2 size={17} /></button></>} />}</div>
+          {!loading && !error && <EventListPagination page={eventPage} pageCount={eventPageCount} totalEvents={events.length} onPageChange={changeEventPage} />}
+        </section>
+        <section className="admin-tools gm-tools">
+          <div className="admin-tab-panels">
+            <form className="event-form gm-event-form" onSubmit={submit}>
+              <div className="gm-event-form-scroll">
+                <div className="form-title-row"><div className="section-heading"><Plus size={20} /><div><p className="eyebrow">{editing ? "Editing event" : "Creating new event"}</p><h2>{editing ? form.title || "Edit event" : "Create event"}</h2></div></div>{editing && <span className="mode-chip">Existing event</span>}</div>
+                <label>Title<input value={form.title} onChange={bindForm(setForm, "title")} required /></label>
+                <label>Game<select value={form.game} onChange={(event) => selectGame(setForm, games, event.target.value)} required><option value="">Select a game</option>{form.game && !games.some((game) => game.name === form.game) && <option value={form.game}>{form.game}</option>}{games.map((game) => <option value={game.name} key={game.id}>{game.name}</option>)}</select></label>
+                <label>Location<input value={form.location} onChange={bindForm(setForm, "location")} required /></label>
+                <label>Description<textarea value={form.description} onChange={bindForm(setForm, "description")} rows="2" required /></label>
+                <EventScheduleFields form={form} setForm={setForm} />
+                <PublishedSwitch checked={form.published} setForm={setForm} />
+                <InvitePanel editing={Boolean(editing)} form={form} generateInvitePin={generateInvitePin} invitePin={invitePin} setForm={setForm} setInvitePin={setInvitePin} shareUrl={shareUrl} />
+                {error && <FormError title={error.title} detail={error.detail} actionUrl={error.actionUrl} actionLabel="Open Firebase index" />}
+                <div className="form-actions">{editing && <button className="button secondary" type="button" onClick={resetGmForm}>Cancel edit</button>}<button className="button" type="submit" disabled={busy}>{busy ? <Loader2 className="spin" size={17} /> : <CheckCircle2 size={17} />}{editing ? "Save changes" : "Create event"}</button></div>
+              </div>
+            </form>
+            {editing && <section className="event-form"><div className="section-heading"><UserRound size={20} /><h2>Joined players</h2></div><div className="game-list">{players.length === 0 && <p>No players have joined yet.</p>}{players.map((player) => <article className="game-entry" key={player.id}><span className="status-dot" /><span>{player.name}</span><button className="icon-button" type="button" onClick={() => savePlayer(player)} title="Edit player"><Edit3 size={17} /></button><button className="icon-button danger" type="button" onClick={() => removePlayer(player)} title="Delete player"><Trash2 size={17} /></button></article>)}</div></section>}
+          </div>
+        </section>
+      </section>
     </main>
   );
 }

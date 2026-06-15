@@ -1,4 +1,10 @@
 import { RefreshCw } from 'lucide-react';
+import {
+  DEFAULT_MAX_PLAYERS,
+  MAX_MAX_PLAYERS,
+  MIN_MAX_PLAYERS,
+  normalizeMaxPlayers,
+} from '../playerLimits.js';
 
 export function PublishedSwitch({ checked, setForm }) {
   return (
@@ -21,7 +27,11 @@ export function PublishedSwitch({ checked, setForm }) {
 
 export function InvitePanel({ editing, form, generateInvitePin, invitePin, setForm, setInvitePin, shareUrl }) {
   const toggleInvite = (enabled) => {
-    setForm((current) => ({ ...current, inviteEnabled: enabled }));
+    setForm((current) => ({
+      ...current,
+      inviteEnabled: enabled,
+      maxPlayers: enabled ? normalizeMaxPlayers(current.maxPlayers) : current.maxPlayers,
+    }));
     setInvitePin(enabled ? generateInvitePin() : '');
   };
 
@@ -43,21 +53,35 @@ export function InvitePanel({ editing, form, generateInvitePin, invitePin, setFo
       </label>
 
       {form.inviteEnabled && (
-        <label>
-          6-digit PIN
-          <div className="field-with-action">
+        <>
+          <label>
+            6-digit PIN
+            <div className="field-with-action">
+              <input
+                value={invitePin}
+                onChange={(event) => setInvitePin(event.target.value.replace(/\D/g, '').slice(0, 6))}
+                inputMode="numeric"
+                pattern="[0-9]{6}"
+                required
+              />
+              <button className="icon-button" type="button" onClick={() => setInvitePin(generateInvitePin())} title="Randomize PIN">
+                <RefreshCw size={17} />
+              </button>
+            </div>
+          </label>
+          <label>
+            Max players
             <input
-              value={invitePin}
-              onChange={(event) => setInvitePin(event.target.value.replace(/\D/g, '').slice(0, 6))}
-              inputMode="numeric"
-              pattern="[0-9]{6}"
+              type="number"
+              value={form.maxPlayers ?? DEFAULT_MAX_PLAYERS}
+              onChange={(event) => setForm((current) => ({ ...current, maxPlayers: event.target.value }))}
+              min={MIN_MAX_PLAYERS}
+              max={MAX_MAX_PLAYERS}
+              step="1"
               required
             />
-            <button className="icon-button" type="button" onClick={() => setInvitePin(generateInvitePin())} title="Randomize PIN">
-              <RefreshCw size={17} />
-            </button>
-          </div>
-        </label>
+          </label>
+        </>
       )}
 
       {editing && form.inviteEnabled && (

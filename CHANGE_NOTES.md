@@ -2,6 +2,27 @@
 
 Date: Planned Release
 
+### Summary
+This feature allows GMs to set a limit number of joiners to an event. Default to 5, with minimum 1 and maximum 24.
+
+* Pre-existing data will default to 5 max player if not set and invite is enabled
+* User that joins above limit will get a pop-up "Player limit exceeded. Please contact your Game Master"
+
+#### Calendar View
+* Public view can see max amount of player
+
+![](https://storage.chronocodex.online/changelog-assets/v1.1.1-1.png)
+
+#### Game Master
+* Game Master can set maximum number
+
+![](https://storage.chronocodex.online/changelog-assets/v1.1.1-2.png)
+
+#### Join Event
+* An error will show when player limit exceed
+
+![](https://storage.chronocodex.online/changelog-assets/v1.1.1-3.png)
+
 ## v1.1.0 Game Master UI Improvements
 
 Date: 13/06/2026

@@ -58,6 +58,7 @@ import {
 import { EventScheduleFields } from '../shared/EventScheduleFields.jsx';
 import { InvitePanel, PublishedSwitch } from '../shared/EventFormControls.jsx';
 import { createRecaptchaToken, preloadRecaptcha } from '../recaptcha.js';
+import { normalizeMaxPlayers } from '../playerLimits.js';
 
 export function AdminView({ navigate }) {
   const [user, setUser] = useState(null);
@@ -312,6 +313,7 @@ function AdminDashboard({ user, navigate }) {
       gameMasterUid: form.gameMasterUid || selectedGameMaster?.uid || selectedGameMaster?.id || '',
       createdBy: editing ? events.find((entry) => entry.id === editing)?.createdBy || user.uid : user.uid,
       inviteEnabled: form.inviteEnabled,
+      ...(form.inviteEnabled ? { maxPlayers: normalizeMaxPlayers(form.maxPlayers) } : {}),
       game: form.game.trim(),
       gameColor: form.gameColor,
       location: form.location.trim(),

@@ -38,6 +38,7 @@ import {
 } from '../time.js';
 import { StatePanel, WarpChargeIndicator } from '../components/AppChrome.jsx';
 import { buildGoogleCalendarUrl, EventDetails } from './EventInfoPage.jsx';
+import { formatPlayerCapacity } from '../playerLimits.js';
 
 const quoteTexts = quotes
   .map((entry) => entry.quote)
@@ -552,7 +553,7 @@ function EventPopover({ event, position, canEdit, onEdit, onClose }) {
         <div className="popover-time">
           <UserRound size={18} />
           <div>
-            <strong>{formatPlayerCount(event.playerCount || 0)}</strong>
+            <strong>{formatPlayerCapacity(event.playerCount || 0, event.maxPlayers)}</strong>
             <span>Joined players</span>
           </div>
         </div>

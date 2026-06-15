@@ -15,6 +15,7 @@ import {
   where,
 } from 'firebase/firestore';
 import { callFunction, db } from './firebase.js';
+import { normalizeMaxPlayers } from './playerLimits.js';
 
 const eventsCollection = () => collection(db, 'events');
 const gamesCollection = () => collection(db, 'games');
@@ -31,7 +32,7 @@ function toDate(value) {
 
 function normalizeDoc(snapshot) {
   const data = snapshot.data();
-  return {
+  const event = {
     id: snapshot.id,
     ...data,
     startAt: toDate(data.startAt),
@@ -39,6 +40,8 @@ function normalizeDoc(snapshot) {
     createdAt: toDate(data.createdAt),
     updatedAt: toDate(data.updatedAt),
   };
+  if (event.inviteEnabled === true) event.maxPlayers = normalizeMaxPlayers(event.maxPlayers);
+  return event;
 }
 
 function normalizePlayerDoc(snapshot) {
@@ -84,7 +87,7 @@ export async function fetchPublicEvents(now = new Date()) {
   return Promise.all(events.map(async (event) => {
     if (event.inviteEnabled !== true) return { ...event, playerCount: 0 };
     const players = await fetchEventPlayers(event.id);
-    return { ...event, playerCount: players.length };
+    return { ...event, maxPlayers: normalizeMaxPlayers(event.maxPlayers), playerCount: players.length };
   }));
 }
 

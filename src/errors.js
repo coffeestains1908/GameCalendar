@@ -27,6 +27,14 @@ const FIREBASE_MESSAGES = {
     title: 'Firebase quota reached',
     detail: 'Firebase rejected the request because a quota or rate limit was reached. Try again later.',
   },
+  'out-of-range': {
+    title: 'Player limit exceeded',
+    detail: 'Player limit exceeded. Please contact your Game Master',
+  },
+  'functions/out-of-range': {
+    title: 'Player limit exceeded',
+    detail: 'Player limit exceeded. Please contact your Game Master',
+  },
   invalid_argument: {
     title: 'Invalid event data',
     detail: 'One or more event fields are not valid. Check the form values and try again.',
