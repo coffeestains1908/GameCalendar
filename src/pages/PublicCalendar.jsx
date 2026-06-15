@@ -11,6 +11,7 @@ import {
   EyeOff,
   FileText,
   Gamepad2,
+  History,
   Loader2,
   MapPin,
   RefreshCw,
@@ -228,6 +229,10 @@ export function PublicCalendar({ navigate }) {
           {activeQuote && <QuoteBanner quote={activeQuote} onTypingComplete={scheduleNextQuote} />}
         </div>
         <div className="topbar-actions">
+          <button className="button compact-action" type="button" onClick={() => navigate('/changelog')}>
+            <History size={18} />
+            Changelogs
+          </button>
           <button className="button secondary compact-action" type="button" onClick={() => navigate('/gm')}>
             <UserRound size={18} />
             GM Login
