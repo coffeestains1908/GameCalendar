@@ -673,6 +673,10 @@
     @apply grid gap-3.5;
   }
 
+  .gm-event-form-scroll {
+    @apply grid gap-3.5;
+  }
+
   .form-error {
     @apply m-0 leading-snug text-[#ff9f9f];
   }
@@ -969,6 +973,26 @@
 
     .gm-tools {
       grid-template-rows: minmax(0, 1fr);
+    }
+
+    .gm-tools .admin-tab-panels {
+      grid-template-rows: minmax(0, 1fr) auto;
+      overflow: hidden;
+      padding-right: 0;
+    }
+
+    .gm-event-form {
+      grid-template-rows: minmax(0, 1fr);
+      min-height: 0;
+      overflow: hidden;
+    }
+
+    .gm-event-form-scroll {
+      min-height: 0;
+      overflow-y: auto;
+      padding-right: 2px;
+      scrollbar-color: #3b4658 #11151d;
+      scrollbar-width: thin;
     }
 
     .admin-tab-panels {
