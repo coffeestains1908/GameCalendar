@@ -103,6 +103,196 @@ Firebase Hosting can remain temporarily. The Worker API can live on a Cloudflare
 
 A later phase can move the Vite static build to Cloudflare Pages or Workers static assets. That is not required for the database migration.
 
+## Dev and live environment split proposal
+
+Split Chronocodex into two isolated environments before any D1 or Worker cutover work begins. The goal is to make development and migration testing possible without touching live users, production Auth users, live invite PINs, or production event data.
+
+Recommended first step:
+
+- Create two Firebase projects: one dev project and one live project.
+- Keep the current Firebase Hosting, Firestore, Auth, and Cloud Functions stack in both projects until the D1 migration is ready.
+- Use Firebase CLI project aliases so deployment commands always target an explicit environment.
+- Use separate Vite env files so the browser bundle is built with the matching Firebase web app config and reCAPTCHA site key.
+- Keep secrets separate. Set `RECAPTCHA_SECRET_KEY` independently in each Firebase project.
+
+Suggested project aliases:
+
+```bash
+firebase use --add
+```
+
+Choose aliases similar to:
+
+```text
+dev  -> chronocodex-dev
+live -> chronocodex-live
+```
+
+Suggested env files:
+
+```text
+.env.local       # local-only defaults, not committed
+.env.dev         # dev Firebase web app config, not committed if it contains private deployment values
+.env.live        # live Firebase web app config, not committed if it contains private deployment values
+.env.example     # committed variable names without real secrets
+```
+
+Vite only exposes variables prefixed with `VITE_`, but production Firebase and reCAPTCHA config should still be treated as environment-specific configuration. The current app expects these variables:
+
+```text
+VITE_FIREBASE_API_KEY=
+VITE_FIREBASE_AUTH_DOMAIN=
+VITE_FIREBASE_PROJECT_ID=
+VITE_FIREBASE_STORAGE_BUCKET=
+VITE_FIREBASE_MESSAGING_SENDER_ID=
+VITE_FIREBASE_APP_ID=
+VITE_FIREBASE_MEASUREMENT_ID=
+VITE_RECAPTCHA_SITE_KEY=
+VITE_APP_VERSION=
+```
+
+Recommended scripts:
+
+```json
+{
+  "dev": "vite --host 127.0.0.1 --mode dev",
+  "build:dev": "vite build --mode dev",
+  "build:live": "vite build --mode live",
+  "deploy:dev": "npm run build:dev && firebase deploy --project dev --only hosting,firestore:rules,functions",
+  "deploy:live": "npm run build:live && firebase deploy --project live --only hosting,firestore:rules,functions",
+  "deploy:hosting:dev": "npm run build:dev && firebase deploy --project dev --only hosting",
+  "deploy:hosting:live": "npm run build:live && firebase deploy --project live --only hosting"
+}
+```
+
+Environment behavior:
+
+- Dev should be disposable. It can use copied or synthetic event data, test admin users, test GM users, and a dev reCAPTCHA key that allows localhost plus the dev domain.
+- Live should only be deployed from intentional release commands or CI jobs that require approval.
+- Admin allowlist documents, GM profiles, games, event secrets, and Auth users should not be shared between dev and live.
+- Firestore rules and Cloud Functions code should be deployed to dev first, smoke-tested, then deployed to live.
+- Live data should be exported before high-risk migrations or schema/authorization changes.
+
+Recommended deployment flow:
+
+1. Build and deploy to dev with `npm run deploy:dev`.
+2. Smoke test public calendar, admin login, GM login, event create/edit, invite join, and player-limit behavior.
+3. Deploy to live with `npm run deploy:live`.
+4. Check Firebase Functions logs and the live public calendar after deploy.
+
+When the Worker and D1 migration starts, mirror the same split:
+
+- Create separate D1 databases for dev and live.
+- Use separate Worker routes or subdomains, for example `api-dev.chronocodex...` and `api.chronocodex...`.
+- Store Worker secrets separately for dev and live.
+- Apply D1 migrations to dev first, then remote live after parity checks.
+- Run Firestore-to-D1 import and parity tooling against dev before scheduling a live migration window.
+
+Do not use one database with an `environment` column for this app. Separate Firebase projects and separate D1 databases provide cleaner isolation for Auth users, security rules, secrets, event data, and rollback.
+
+## Infrastructure as Code proposal
+
+Use Infrastructure as Code after the dev/live split is confirmed, but do not force every app deployment through IaC. The best fit for this project is a hybrid model:
+
+- OpenTofu owns repeatable cloud resource provisioning.
+- Firebase CLI owns Firebase Hosting, Firestore Rules, and Cloud Functions deploys while Firebase remains active.
+- Wrangler owns Worker code deploys, D1 migrations, and Worker secrets.
+- CI can later orchestrate those commands with a required approval step before live deploys.
+
+Recommended tool: OpenTofu.
+
+OpenTofu is preferred over Terraform for this project because it keeps the Terraform-style workflow while avoiding HashiCorp licensing ambiguity. Terraform is still a reasonable choice if a team already standardizes on HashiCorp Terraform Cloud or Enterprise. Pulumi is also viable if the team strongly prefers TypeScript or another general-purpose language for infrastructure, but it adds more abstraction than this project currently needs.
+
+Recommended IaC ownership:
+
+- Cloudflare account resources that should be reproducible: D1 databases, Worker routes, DNS records, and environment-specific bindings where provider support is practical.
+- Cloudflare Pages or static asset hosting resources if hosting later moves from Firebase.
+- Google Cloud service accounts, IAM grants, and project-level resources only if they can be managed safely without fighting Firebase-managed resources.
+- Remote state storage and locking, once the infrastructure is shared by more than one operator or CI.
+
+Do not use IaC for:
+
+- Worker source deploys.
+- D1 SQL migration application.
+- Firebase Hosting deploys.
+- Firestore Rules deploys.
+- Cloud Functions code deploys.
+- Secret values. IaC may define that a secret must exist, but secret values should be written through `wrangler secret put`, Firebase secret commands, or CI secret stores.
+
+Suggested repository structure:
+
+```text
+infra/
+  modules/
+    cloudflare-app/
+      main.tf
+      variables.tf
+      outputs.tf
+  envs/
+    dev/
+      main.tf
+      backend.tf
+      providers.tf
+      terraform.tfvars
+    live/
+      main.tf
+      backend.tf
+      providers.tf
+      terraform.tfvars
+```
+
+Keep dev and live state separate. Separate state directories are clearer than workspaces for this app because dev and live have different risk profiles, domains, database IDs, and approval rules.
+
+Example workflow:
+
+```bash
+cd infra/envs/dev
+tofu init
+tofu plan
+tofu apply
+```
+
+```bash
+cd infra/envs/live
+tofu init
+tofu plan
+tofu apply
+```
+
+Recommended Cloudflare environment model:
+
+- `chronocodex-api-dev` Worker bound to the dev D1 database.
+- `chronocodex-api-live` Worker bound to the live D1 database.
+- `chronocodex-dev` D1 database for dev.
+- `chronocodex-live` D1 database for live.
+- Separate dev and live routes or subdomains, for example `api-dev...` and `api...`.
+
+Recommended Wrangler responsibilities after OpenTofu creates the resources:
+
+```bash
+wrangler deploy
+wrangler deploy --env live
+wrangler d1 migrations apply chronocodex-dev
+wrangler d1 migrations apply chronocodex-live --remote
+wrangler secret put RECAPTCHA_SECRET_KEY
+wrangler secret put RECAPTCHA_SECRET_KEY --env live
+```
+
+Recommended CI flow:
+
+1. Run `tofu fmt -check`, `tofu validate`, and `tofu plan` for dev and live.
+2. Apply dev infrastructure changes automatically or with light review.
+3. Deploy app code to dev with Firebase CLI and Wrangler.
+4. Run smoke tests against dev.
+5. Require manual approval before `tofu apply` for live or any live Firebase/Wrangler deploy.
+
+Phase the IaC work:
+
+1. Start with documented manual Firebase aliases and Wrangler envs.
+2. Add OpenTofu only for Cloudflare D1, Worker route, and DNS provisioning.
+3. Add CI plans once the OpenTofu layout is stable.
+4. Consider Google Cloud/Firebase IaC only after the Firebase project boundaries are stable and the managed Firebase resources are well understood.
+
 ## Proposed repository structure
 
 Keep the first migration structurally conservative: leave the Vite React app at the repository root and add a dedicated Worker package beside it. This avoids a broad monorepo refactor while still giving the Worker, D1 migrations, tests, and migration tooling clear ownership boundaries.
@@ -438,6 +628,8 @@ The Worker must preserve these behavior rules from Firestore Rules and Cloud Fun
 ### Phase 1: Documentation and design
 
 - Add this feasibility document.
+- Confirm the dev/live environment split and create Firebase project aliases.
+- Confirm the IaC boundary: OpenTofu for provisioning, Firebase CLI and Wrangler for deployments.
 - Confirm Firebase Auth is retained for v1.
 - Confirm hosting migration is out of scope for the first data migration.
 - Confirm whether GM account management must move to Worker immediately or can remain temporarily in Firebase Functions.
