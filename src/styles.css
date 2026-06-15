@@ -366,6 +366,97 @@
     @apply mt-3 mb-1;
   }
 
+  .changelog-shell {
+    @apply pb-28;
+  }
+
+  .changelog-current-version {
+    @apply mt-2 mb-0 text-sm font-bold text-[#8d98aa];
+  }
+
+  .changelog-timeline {
+    @apply relative grid gap-4;
+  }
+
+  .changelog-timeline::before {
+    content: "";
+    @apply absolute top-3 bottom-3 left-[17px] w-px bg-[#2f3a4c];
+  }
+
+  .changelog-release {
+    @apply relative grid gap-4;
+    grid-template-columns: 34px minmax(0, 1fr);
+  }
+
+  .changelog-marker {
+    @apply relative z-10 grid h-[34px] w-[34px] place-items-center rounded-lg border border-[#39d98a]/55 bg-[#102019] text-[#86efb8];
+    box-shadow: 0 0 18px rgb(57 217 138 / 0.18);
+  }
+
+  .changelog-markdown-panel {
+    @apply rounded-lg border border-[#27303d] bg-[#171b23]/92 p-5;
+  }
+
+  .changelog-release-heading {
+    @apply mb-3 flex flex-wrap items-start justify-between gap-3 border-b border-[#26303f] pb-3;
+  }
+
+  .changelog-markdown-panel h2 {
+    @apply m-0 text-2xl leading-tight text-[#f4f7fb];
+  }
+
+  .changelog-date-tag {
+    @apply rounded-full border border-[#39d98a]/45 bg-[#102019] px-2.5 py-0.5 text-xs font-black uppercase text-[#86efb8];
+  }
+
+  .changelog-markdown-panel h3 {
+    @apply mt-6 mb-2 text-base text-[#f4f7fb];
+  }
+
+  .changelog-markdown-panel p {
+    @apply my-3 leading-relaxed text-[#d5deec];
+  }
+
+  .changelog-markdown-panel ul,
+  .changelog-markdown-panel ol {
+    @apply my-3 grid gap-2 pl-5 text-sm leading-relaxed text-[#aeb8c8];
+  }
+
+  .changelog-markdown-panel ul {
+    @apply list-disc;
+  }
+
+  .changelog-markdown-panel ol {
+    @apply list-decimal;
+  }
+
+  .changelog-markdown-panel li::marker {
+    color: #72ffae;
+  }
+
+  .changelog-markdown-panel a {
+    @apply font-extrabold text-[#8cc7ff] no-underline;
+  }
+
+  .changelog-markdown-panel a:hover,
+  .changelog-markdown-panel a:focus-visible {
+    @apply text-[#c8e6ff] underline;
+  }
+
+  .changelog-markdown-panel code {
+    @apply rounded-md border border-[#303b4e] bg-[#0f131b] px-1.5 py-0.5 text-[#8fd3ff];
+  }
+
+  .changelog-markdown-panel pre {
+    @apply my-4 overflow-x-auto rounded-lg border border-[#303b4e] bg-[#0f131b] p-4 text-sm;
+    scrollbar-color: #3b4658 #0f131b;
+    scrollbar-width: thin;
+  }
+
+  .changelog-markdown-panel pre code {
+    @apply border-0 bg-transparent p-0;
+  }
+
   .calendar-board {
     @apply w-full cursor-grab select-none overflow-x-auto border-y border-[#26303f] bg-[#10141c]/70;
     --day-width: 210px;
@@ -1040,6 +1131,26 @@
 
     .public-shell .topbar h1 {
       @apply text-[1.55rem];
+    }
+
+    .changelog-timeline::before {
+      @apply left-[13px];
+    }
+
+    .changelog-release {
+      grid-template-columns: 26px minmax(0, 1fr);
+    }
+
+    .changelog-marker {
+      @apply h-[26px] w-[26px];
+    }
+
+    .changelog-markdown-panel {
+      @apply p-4;
+    }
+
+    .changelog-markdown-panel h2 {
+      @apply text-xl;
     }
 
     .admin-layout,

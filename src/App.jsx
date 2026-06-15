@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { firebaseReady } from './firebase.js';
 import { CreditFooter, SetupMissing, StarWarpBackground } from './components/AppChrome.jsx';
 import { AdminView } from './pages/Admin.jsx';
+import { ChangelogPage } from './pages/ChangelogPage.jsx';
 import { EventInfoPage } from './pages/EventInfoPage.jsx';
 import { GameMasterView } from './pages/GameMaster.jsx';
 import { PublicCalendar } from './pages/PublicCalendar.jsx';
@@ -35,6 +36,8 @@ export function App() {
   let page;
   if (route.startsWith('/event/')) {
     page = <EventInfoPage eventId={decodeURIComponent(route.replace('/event/', ''))} navigate={navigate} />;
+  } else if (route.startsWith('/changelog')) {
+    page = <ChangelogPage navigate={navigate} />;
   } else if (route.startsWith('/admin')) {
     page = <AdminView navigate={navigate} />;
   } else if (route.startsWith('/gm')) {
