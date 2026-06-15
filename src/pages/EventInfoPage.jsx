@@ -37,6 +37,7 @@ import { bindForm, buildEventSchedule, eventToForm, selectGame } from '../shared
 import { EventScheduleFields } from '../shared/EventScheduleFields.jsx';
 import { InvitePanel, PublishedSwitch } from '../shared/EventFormControls.jsx';
 import { createRecaptchaToken, preloadRecaptcha, recaptchaSiteKey } from '../recaptcha.js';
+import { formatPlayerCapacity, normalizeMaxPlayers } from '../playerLimits.js';
 
 const googleDatePartFormatter = new Intl.DateTimeFormat('en-CA', {
   timeZone: MALAYSIA_TIME_ZONE,
@@ -204,11 +205,12 @@ export function EventInfoPage({ eventId, navigate }) {
           )}
           {event.inviteEnabled === true && <JoinEventForm eventId={event.id} onJoined={loadEventPlayers} />}
           {canViewPlayers && !canManagePlayers && (
-            <PublicJoinedPlayers players={playerList} />
+            <PublicJoinedPlayers event={event} players={playerList} />
           )}
           {canManagePlayers && (
             <JoinedPlayersManager
               eventId={event.id}
+              event={event}
               players={playerList}
               onReload={loadEventPlayers}
             />
@@ -271,6 +273,7 @@ function EventEditForm({ event, onCancel, onSaved }) {
       gameMasterUid: event.gameMasterUid || "",
       createdBy: event.createdBy || event.gameMasterUid || "",
       inviteEnabled: form.inviteEnabled,
+      ...(form.inviteEnabled ? { maxPlayers: normalizeMaxPlayers(form.maxPlayers) } : {}),
       game: form.game.trim(),
       gameColor: form.gameColor,
       location: form.location.trim(),
@@ -349,12 +352,12 @@ function EventEditForm({ event, onCancel, onSaved }) {
   );
 }
 
-function PublicJoinedPlayers({ players }) {
+function PublicJoinedPlayers({ event, players }) {
   return (
     <section className="join-form">
       <div className="section-heading">
         <UserRound size={20} />
-        <h2>Joined players</h2>
+        <h2>{formatPlayerCapacity(players.length, event.maxPlayers)}</h2>
       </div>
       <div className="game-list">
         {players.length === 0 && <p>No players have joined yet.</p>}
@@ -369,7 +372,7 @@ function PublicJoinedPlayers({ players }) {
   );
 }
 
-function JoinedPlayersManager({ eventId, players, onReload }) {
+function JoinedPlayersManager({ eventId, event, players, onReload }) {
   const [busyPlayerId, setBusyPlayerId] = useState("");
   const editPlayer = async (player) => {
     const nextName = window.prompt("Player name", player.name);
@@ -398,7 +401,7 @@ function JoinedPlayersManager({ eventId, players, onReload }) {
     <section className="join-form">
       <div className="section-heading">
         <UserRound size={20} />
-        <h2>Joined players</h2>
+        <h2>{formatPlayerCapacity(players.length, event.maxPlayers)}</h2>
       </div>
       <div className="game-list">
         {players.length === 0 && <p>No players have joined yet.</p>}

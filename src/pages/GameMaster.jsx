@@ -44,6 +44,7 @@ import {
 } from '../shared/forms.js';
 import { EventScheduleFields } from '../shared/EventScheduleFields.jsx';
 import { InvitePanel, PublishedSwitch } from '../shared/EventFormControls.jsx';
+import { normalizeMaxPlayers } from '../playerLimits.js';
 
 export function GameMasterView({ navigate }) {
   const [user, setUser] = useState(null);
@@ -174,7 +175,7 @@ function GameMasterDashboard({ user, profile, navigate }) {
     event.preventDefault(); setBusy(true); setError(null);
     const schedule = buildEventSchedule(form);
     if (schedule.error) { setError(schedule.error); setBusy(false); return; }
-    const payload = { title: form.title.trim(), gameMaster: profile.name, gameMasterUid: user.uid, createdBy: user.uid, inviteEnabled: form.inviteEnabled, game: form.game.trim(), gameColor: form.gameColor, location: form.location.trim(), description: form.description.trim(), startAt: schedule.startAt, endAt: schedule.endAt, published: form.published };
+    const payload = { title: form.title.trim(), gameMaster: profile.name, gameMasterUid: user.uid, createdBy: user.uid, inviteEnabled: form.inviteEnabled, ...(form.inviteEnabled ? { maxPlayers: normalizeMaxPlayers(form.maxPlayers) } : {}), game: form.game.trim(), gameColor: form.gameColor, location: form.location.trim(), description: form.description.trim(), startAt: schedule.startAt, endAt: schedule.endAt, published: form.published };
     try {
       const inviteOptions = form.inviteEnabled && invitePin ? { invitePin } : {};
       if (editing) {

@@ -44,7 +44,7 @@ service cloud.firestore {
     function allowedEventFields() {
       return [
         "title", "gameMaster", "game", "gameColor", "location", "description", "startAt", "endAt",
-        "published", "createdAt", "updatedAt", "createdBy", "gameMasterUid", "inviteEnabled"
+        "published", "createdAt", "updatedAt", "createdBy", "gameMasterUid", "inviteEnabled", "maxPlayers"
       ];
     }
 
@@ -70,12 +70,27 @@ service cloud.firestore {
         && request.resource.data.endAt is timestamp
         && request.resource.data.endAt > request.resource.data.startAt
         && request.resource.data.published is bool
+        && isValidMaxPlayers()
         && (
           !request.resource.data.keys().hasAny(["gameColor"])
           || (request.resource.data.gameColor is string && request.resource.data.gameColor.matches("^#[0-9A-Fa-f]{6}$"))
         );
     }
 
+    function isValidMaxPlayers() {
+      return (
+          !request.resource.data.keys().hasAny(["maxPlayers"])
+          || (
+            request.resource.data.maxPlayers is int
+            && request.resource.data.maxPlayers >= 1
+            && request.resource.data.maxPlayers <= 24
+          )
+        )
+        && (
+          request.resource.data.inviteEnabled == false
+          || request.resource.data.keys().hasAny(["maxPlayers"])
+        );
+    }
     function isValidNewEvent() {
       return isValidEventData()
         && request.resource.data.createdAt == request.time

@@ -5,6 +5,12 @@ import {
   toInputDate,
   toInputTime,
 } from '../time.js';
+import {
+  DEFAULT_MAX_PLAYERS,
+  MAX_MAX_PLAYERS,
+  MIN_MAX_PLAYERS,
+  normalizeMaxPlayers,
+} from '../playerLimits.js';
 
 const MS_PER_MINUTE = 60 * 1000;
 const MINUTES_PER_DAY = 24 * 60;
@@ -28,6 +34,7 @@ export function createEmptyEventForm() {
     durationMinutes: 240,
     published: true,
     inviteEnabled: false,
+    maxPlayers: DEFAULT_MAX_PLAYERS,
   };
 }
 
@@ -52,6 +59,7 @@ export function eventToForm(event, games = []) {
     durationMinutes,
     published: Boolean(event.published),
     inviteEnabled: event.inviteEnabled === true,
+    maxPlayers: normalizeMaxPlayers(event.maxPlayers),
   };
 }
 
@@ -217,6 +225,18 @@ export function buildEventSchedule(form) {
         detail: 'Duration must be greater than 0 minutes.',
       },
     };
+  }
+
+  if (form.inviteEnabled) {
+    const maxPlayers = Number(form.maxPlayers);
+    if (!Number.isInteger(maxPlayers) || maxPlayers < MIN_MAX_PLAYERS || maxPlayers > MAX_MAX_PLAYERS) {
+      return {
+        error: {
+          title: 'Invalid player limit',
+          detail: `Max players must be between ${MIN_MAX_PLAYERS} and ${MAX_MAX_PLAYERS}.`,
+        },
+      };
+    }
   }
 
   const startAt = malaysiaInputToDate(form.dateRange.from, form.startTime);
