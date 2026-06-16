@@ -232,16 +232,12 @@
     background: rgb(114 255 174 / 0.46);
   }
 
-  .public-footer-stack {
-    @apply fixed bottom-3 left-1/2 z-40 flex -translate-x-1/2 select-none flex-col items-center gap-1.5;
-  }
-
   .public-footer {
-    @apply flex items-center gap-2 rounded-full border border-[#27303d] bg-[#101216]/85 px-3 py-1.5 text-xs text-[#78859a] backdrop-blur;
+    @apply fixed bottom-3 left-1/2 z-40 -translate-x-1/2 select-none;
   }
 
   .footer-source-link {
-    @apply flex max-w-[calc(100vw-24px)] items-center justify-center gap-1.5 rounded-full border border-[#27303d]/75 bg-[#101216]/75 px-2.5 py-1 text-[0.68rem] font-bold text-[#8d98aa] no-underline backdrop-blur transition;
+    @apply flex max-w-[calc(100vw-24px)] flex-wrap items-center justify-center gap-2 rounded-full border border-[#27303d]/75 bg-[#101216]/85 px-3 py-1.5 text-xs font-bold text-[#8d98aa] no-underline backdrop-blur transition;
   }
 
   .footer-source-link:hover,
@@ -257,17 +253,12 @@
     @apply min-w-0 truncate;
   }
 
-  .public-footer strong {
+  .footer-source-link strong {
     @apply font-extrabold text-[#d8dde7];
   }
 
-  .public-footer span {
-    @apply text-[#78859a];
-  }
-
-  .public-footer span::before {
-    content: "|";
-    @apply mr-2 text-[#4f5b6d];
+  .footer-source-label {
+    @apply flex items-center gap-2;
   }
 
   .setup-shell,
@@ -469,7 +460,7 @@
   }
 
   .schedule-cta {
-    @apply flex flex-wrap items-center justify-center gap-1.5 px-4 pt-5 pb-20 text-center text-sm font-bold text-[#8d98aa];
+    @apply flex flex-col items-center justify-center gap-3 px-4 pt-5 pb-24 text-center text-sm font-bold text-[#8d98aa];
   }
 
   .schedule-cta a {
@@ -479,6 +470,22 @@
   .schedule-cta a:hover,
   .schedule-cta a:focus-visible {
     @apply border-[#72ffae] bg-[#143024] text-[#d8ffe7];
+  }
+
+  .survey-cta {
+    @apply flex flex-col items-center justify-center gap-3 text-center;
+  }
+
+  .schedule-cta .survey-cta-button {
+    @apply min-h-[40px] px-4 py-2 text-[#d8ffe7];
+  }
+
+  .survey-qr {
+    @apply flex flex-col items-center justify-center gap-2.5 text-center;
+  }
+
+  .survey-qr img {
+    @apply h-24 w-24 rounded-lg border border-[#39d98a]/45 bg-white p-1;
   }
 
   .calendar-month-row {

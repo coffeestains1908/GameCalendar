@@ -1,6 +1,18 @@
+## v1.1.2 Survey CTA and Footer Cleanup
+
+Date: 16/06/2026
+
+### Summary
+Adds a public calendar survey prompt and simplifies the site footer.
+
+* Added an "answer our survey" button for future events
+* Added a QR code alternative for opening the survey
+* Removed the WhatsApp scheduling CTA from the public calendar
+* Combined the footer into one open-source project link
+
 ## V1.1.1 Joiner Limit
 
-Date: Planned Release
+Date: 15/06/2026
 
 ### Summary
 This feature allows GMs to set a limit number of joiners to an event. Default to 5, with minimum 1 and maximum 24.
