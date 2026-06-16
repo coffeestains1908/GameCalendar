@@ -22,6 +22,7 @@ import { onAuthStateChanged } from 'firebase/auth';
 import { auth, isAllowedAdmin } from '../firebase.js';
 import { toUserError } from '../errors.js';
 import quotes from '../data/quotes.json';
+import surveyEventsQr from '../assets/survey-events-qr.svg';
 import { fetchPublicEvents } from '../events.js';
 import {
   addDaysToDateKey,
@@ -57,6 +58,7 @@ const EVENT_BAR_GAP = 18;
 const EVENT_BAR_TOP_OFFSET = 12;
 const EVENT_TITLE_CHARS_PER_LINE = 23;
 const EVENT_TITLE_LINE_HEIGHT = 16;
+const surveyUrl = 'https://forms.gle/dwf2dZM1mwN7NdDE8';
 
 function getTypingErrorGlyph(expectedCharacter) {
   let glyph = matrixGlyphs[Math.floor(Math.random() * matrixGlyphs.length)];
@@ -317,9 +319,15 @@ export function PublicCalendar({ navigate }) {
       )}
 
       <div className="schedule-cta">
-        <span>Want to schedule in your game? Send me a</span>
-        <a href="https://wa.me/60102083434" target="_blank" rel="noreferrer">WhatsApp</a>
-        <span>!</span>
+        <div className="survey-cta">
+          <a className="survey-cta-button" href={surveyUrl} target="_blank" rel="noreferrer">
+            Click here to answer our survey for future events
+          </a>
+          <div className="survey-qr">
+            <span>Alternatively, you can scan this QR Code</span>
+            <img src={surveyEventsQr} alt="QR code for the future events survey" />
+          </div>
+        </div>
       </div>
 
       {activeSegment && (

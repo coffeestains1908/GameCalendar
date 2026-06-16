@@ -275,17 +275,16 @@ export function WarpChargeIndicator() {
 
 export function CreditFooter() {
   return (
-    <div className="public-footer-stack">
-      <footer className="public-footer">
-        <strong>v{appVersion}</strong>
-        <span>Created and maintained by Danish</span>
-      </footer>
-
+    <footer className="public-footer">
       <a className="footer-source-link" href="https://github.com/coffeestains1908/GameCalendar" target="_blank" rel="noreferrer">
+        <strong>v{appVersion}</strong>
+        <span className="footer-source-label">
+          <span aria-hidden="true">|</span>
+          <span>This project is open sourced</span>
+        </span>
         <img src={githubIcon} alt="" />
-        <span>This project is open sourced ❤️</span>
       </a>
-    </div>
+    </footer>
   );
 }
 
