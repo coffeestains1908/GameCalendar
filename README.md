@@ -6,6 +6,8 @@ A Firebase-hosted React + Vite calendar for game events. The public calendar sho
 
 For a product-facing overview of current screens, role capabilities, invite behavior, and common terms, see [Chronocodex Features And Terms](docs/features-and-terms.md).
 
+For the proposed dev/live environment split and future D1/Worker migration plan, see [Cloudflare D1 + Worker Feasibility and Migration Plan](docs/d1-worker-feasibility-and-migration.md).
+
 ## Requirements
 
 Install these locally:
